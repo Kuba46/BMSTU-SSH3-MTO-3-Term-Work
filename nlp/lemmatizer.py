@@ -29,7 +29,7 @@ from config.settings import (
     PROCESSED_CSV,
     STOPWORDS_PATH,
     MIN_TOKEN_LENGTH,
-    ALLOWED_POS_TAGS,
+    ALLOWED_POS,
 )
 
 log = logging.getLogger(__name__)
@@ -120,7 +120,7 @@ def lemmatize_text(text: str) -> str:
         lemma, pos = _lemmatize_token(token)
 
         # Фильтр по части речи
-        if pos not in ALLOWED_POS_TAGS:
+        if pos not in ALLOWED_POS:
             continue
 
         # Фильтр по стоп-словам (проверяем и оригинал, и лемму)

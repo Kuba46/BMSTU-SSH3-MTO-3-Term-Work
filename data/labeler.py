@@ -23,6 +23,7 @@ data/labeler.py
 """
 
 
+import argparse
 import logging
 import os
 import sys
@@ -217,3 +218,28 @@ def _print_summary(stats: dict) -> None:
         print(f"\n  Доля негативных: {neg_pct:.1f}%")
         print(f"  Доля позитивных: {pos_pct:.1f}%")
     print(f"{'═' * 50}\n")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Интерактивная ручная разметка тональности постов."
+    )
+    parser.add_argument(
+        "--n",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Разметить не более N постов (по умолчанию — все нераzmеченные).",
+    )
+    parser.add_argument(
+        "--ch",
+        nargs="*",
+        metavar="USERNAME",
+        help="Разметить только указанные каналы (по username без @).",
+    )
+    args = parser.parse_args()
+    run_labeling(n_limit=args.n, channel_filter=args.ch)
+
+
+if __name__ == "__main__":
+    main()

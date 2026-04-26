@@ -23,7 +23,7 @@ import logging
 import unicodedata
 import pandas as pd
 
-from config import RAW_CSV, PROCESSED_CSV
+from config.settings import RAW_CSV, PROCESSED_CSV
 
 
 log = logging.getLogger(__name__)

@@ -1,0 +1,3 @@
+TELEGRAM_API_ID = 12345678
+TELEGRAM_API_HASH = "your_telegram_api_hash"
+TELEGRAM_SESSION = "dolina_session"

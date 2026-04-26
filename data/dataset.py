@@ -209,3 +209,19 @@ def load_processed(path: Path = PROCESSED_CSV) -> pd.DataFrame:
     df = pd.read_csv(path, encoding="utf-8")
     df["date"] = pd.to_datetime(df["date"], utc=True, errors="coerce")
     return df
+
+
+def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(levelname)-8s  %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    df_raw = load_raw()
+    df_valid = validate(df_raw)
+    corpus_stats(df_valid)
+    save_processed(df_valid)
+
+
+if __name__ == "__main__":
+    main()
