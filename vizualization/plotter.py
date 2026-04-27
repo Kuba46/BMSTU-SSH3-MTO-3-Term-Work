@@ -17,8 +17,8 @@ viz/plotter.py
     save_all()                   — сохраняет все графики в FIGURES_DIR
 
 Запуск:
-    python -m viz.plotter         # генерирует все графики
-    python -m viz.plotter --show  # открывает графики в окне (требует GUI)
+    python -m vizualization.plotter         # генерирует все графики
+    python -m vizualization.plotter --show  # открывает графики в окне (требует GUI)
 """
 
 import argparse

@@ -82,6 +82,19 @@ def load_labeled_corpus() -> pd.DataFrame:
     df_labels["sentiment"] = df_labels["sentiment"].astype(int)
 
     df = df_corpus.merge(df_labels, on=["channel_username", "post_id"], how="inner")
+
+    if df.empty:
+        corpus_channels = set(df_corpus["channel_username"].dropna().astype(str).unique())
+        labels_channels = set(df_labels["channel_username"].dropna().astype(str).unique())
+        overlap_channels = sorted(corpus_channels & labels_channels)
+
+        raise ValueError(
+            "После объединения PROCESSED_CSV и LABELED_CSV не найдено ни одной размеченной записи.\n"
+            "Проверьте, что вы размечаете посты из processed-корпуса, а не из другого набора.\n"
+            f"Каналы в processed: {len(corpus_channels)}, в labeled: {len(labels_channels)}, "
+            f"пересечение: {len(overlap_channels)}."
+        )
+
     df["text_lemma"] = df["text_lemma"].fillna("").astype(str)
 
     # Убираем записи без лемматизированного текста
@@ -126,6 +139,11 @@ def train(
         tfidf_params = TFIDF_PARAMS
     if logreg_params is None:
         logreg_params = LOGREG_PARAMS
+
+    if df.empty:
+        raise ValueError(
+            "Пустая обучающая выборка. Сначала создайте/обновите разметку для записей из processed-корпуса."
+        )
 
     X_text = df["text_lemma"].values
     y      = df["sentiment"].values
@@ -305,7 +323,7 @@ def main() -> None:
 
     # Сохраняем метрики в JSON для последующего сравнения с SVM
     import json
-    from config import METRICS_JSON
+    from config.settings import METRICS_JSON
     existing = {}
     if METRICS_JSON.exists():
         with open(METRICS_JSON, encoding="utf-8") as f:

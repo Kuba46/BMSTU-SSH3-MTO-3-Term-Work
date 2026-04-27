@@ -4,20 +4,22 @@ data/collector.py
 Асинхронный сборщик данных из Telegram-каналов через Telethon MTProto API.
 
 Логика сбора:
-  - Надёжное получение linked discussion group (3 стратегии fallback)
-  - Комментарии собираются ТОЛЬКО под релевантными постами
-  - Жёсткая фильтрация комментариев по дате (только период корпуса)
-  - CSV с комментариями разбит на секции по постам через is_section_header
+    - Надёжное получение linked discussion group (3 стратегии fallback)
+    - Комментарии собираются ТОЛЬКО под релевантными постами
+    - Жёсткая фильтрация комментариев по дате (только период корпуса)
+    - CSV с комментариями разбит на секции по постам через is_section_header
 
 Запуск:
-  python -m data.collector
-  python -m data.collector --ch topor davankov
+    python -m data.collector
+    python -m data.collector --ch topor davankov
 """
 
 import asyncio
 import argparse
 import logging
+import sqlite3
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pandas as pd
 from telethon import TelegramClient
@@ -65,6 +67,28 @@ _END_DT = datetime(
     CORPUS_END_DATE.year, CORPUS_END_DATE.month, CORPUS_END_DATE.day,
     23, 59, 59, tzinfo=timezone.utc,
 )
+
+
+def _cleanup_stale_session_journal() -> None:
+    session_db = Path(f"{TELEGRAM_SESSION}.session")
+    session_journal = Path(f"{TELEGRAM_SESSION}.session-journal")
+
+    if not session_journal.exists() or not session_db.exists():
+        return
+
+    try:
+        conn = sqlite3.connect(session_db, timeout=1)
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.rollback()
+        finally:
+            conn.close()
+    except sqlite3.OperationalError:
+        log.warning("Session DB занята другим процессом: %s", session_db)
+        return
+
+    session_journal.unlink(missing_ok=True)
+    log.warning("Удалён stale session journal: %s", session_journal)
 
 # ── Фильтрация релевантности ──────────────────────────────────────────────────
 
@@ -178,6 +202,7 @@ async def _get_discussion_peer(
 
 async def _collect_comments_for_post(
     client: TelegramClient,
+    channel_peer: object,
     discussion_peer: object,
     post_id: int,
     post_date: datetime,
@@ -204,13 +229,22 @@ async def _collect_comments_for_post(
 
     try:
         discussion = await client(GetDiscussionMessageRequest(
-            peer=discussion_peer,
+            peer=channel_peer,
             msg_id=post_id,
         ))
         if not discussion or not discussion.messages:
             return []
 
-        root_msg_id = discussion.messages[0].id
+        discussion_chat_id = getattr(discussion_peer, "id", None)
+        root_msg_id = None
+        for message in discussion.messages:
+            peer_id = getattr(message, "peer_id", None)
+            if getattr(peer_id, "channel_id", None) == discussion_chat_id:
+                root_msg_id = message.id
+                break
+
+        if root_msg_id is None:
+            return []
 
         async for msg in client.iter_messages(
             discussion_peer,
@@ -288,9 +322,15 @@ async def collect_channel(
     skipped_rel  = 0
     skipped_date = 0
 
-    # Получаем linked discussion group один раз для всего канала
+    # Получаем сущности один раз для всего канала
+    channel_peer = None
     discussion_peer = None
     if has_comments:
+        try:
+            channel_peer = await client.get_entity(username)
+        except Exception as exc:
+            log.warning("  @%s: не удалось получить channel peer: %s", username, exc)
+
         discussion_peer, linked_id = await _get_discussion_peer(client, username)
         if discussion_peer is not None:
             log.info("  @%s: discussion group найдена (linked_id=%d)",
@@ -346,9 +386,9 @@ async def collect_channel(
 
         # Комментарии — только под этим релевантным постом,
         # только за период корпуса
-        if has_comments and discussion_peer is not None:
+        if has_comments and discussion_peer is not None and channel_peer is not None:
             post_comments = await _collect_comments_for_post(
-                client, discussion_peer,
+                client, channel_peer, discussion_peer,
                 msg.id, msg_date, username,
             )
             comments.extend(post_comments)
@@ -415,17 +455,34 @@ async def run_collection(target_usernames: list[str] | None = None) -> None:
 
     all_posts: list[dict] = []
 
-    async with TelegramClient(
-        TELEGRAM_SESSION, TELEGRAM_API_ID, TELEGRAM_API_HASH
-    ) as client:
-        await client.start()
+    max_connect_attempts = 2
+    for attempt in range(1, max_connect_attempts + 1):
+        try:
+            async with TelegramClient(
+                TELEGRAM_SESSION, TELEGRAM_API_ID, TELEGRAM_API_HASH
+            ) as client:
+                await client.start()
 
-        for ch_meta in channels_to_collect:
-            posts, comments = await collect_channel(client, ch_meta)
+                for ch_meta in channels_to_collect:
+                    posts, comments = await collect_channel(client, ch_meta)
 
-            # Сохраняем сразу после каждого канала — защита от падений
-            _save_channel_files(ch_meta["username"], posts, comments)
-            all_posts.extend(posts)
+                    # Сохраняем сразу после каждого канала — защита от падений
+                    _save_channel_files(ch_meta["username"], posts, comments)
+                    all_posts.extend(posts)
+            break
+
+        except sqlite3.OperationalError as exc:
+            if "database is locked" not in str(exc).lower() or attempt >= max_connect_attempts:
+                raise
+
+            log.warning(
+                "SQLite session заблокирована (%s). Попытка восстановления %d/%d...",
+                exc,
+                attempt,
+                max_connect_attempts,
+            )
+            _cleanup_stale_session_journal()
+            await asyncio.sleep(1)
 
     # Сводный файл
     if all_posts:

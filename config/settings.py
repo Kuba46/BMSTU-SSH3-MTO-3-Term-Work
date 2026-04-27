@@ -26,7 +26,7 @@ for _d in [RAW_DIR, LABELED_DIR, PROCESSED_DIR, MODELS_DIR, RESULTS_DIR, FIGURES
 
 
 try:
-    from telegram_credentials_local import (
+    from config.telegram_credentials_local import (
         TELEGRAM_API_ID as _TELEGRAM_API_ID,
         TELEGRAM_API_HASH as _TELEGRAM_API_HASH,
         TELEGRAM_SESSION as _TELEGRAM_SESSION,
@@ -36,7 +36,18 @@ try:
     TELEGRAM_API_HASH = _TELEGRAM_API_HASH
     TELEGRAM_SESSION = _TELEGRAM_SESSION
 except ImportError:
-    pass
+    try:
+        from telegram_credentials_local import (
+            TELEGRAM_API_ID as _TELEGRAM_API_ID,
+            TELEGRAM_API_HASH as _TELEGRAM_API_HASH,
+            TELEGRAM_SESSION as _TELEGRAM_SESSION,
+        )
+
+        TELEGRAM_API_ID = _TELEGRAM_API_ID
+        TELEGRAM_API_HASH = _TELEGRAM_API_HASH
+        TELEGRAM_SESSION = _TELEGRAM_SESSION
+    except ImportError:
+        pass
 
 
 # ── Выборка каналов ───────────────────────────────────────────────────────────

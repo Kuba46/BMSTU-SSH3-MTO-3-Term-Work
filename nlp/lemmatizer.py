@@ -4,16 +4,19 @@ nlp/lemmatizer.py
 Второй шаг NLP-пайплайна: морфологический анализ и лемматизация.
 
 Что делает:
-    - Токенизирует очищенный текст по пробелам
-    - Для каждого токена определяет лемму через pymorphy2
-    - Фильтрует токены по части речи (ALLOWED_POS из settings)
-    - Удаляет стоп-слова (встроенные NLTK + пользовательский список)
-    - Удаляет слишком короткие токены (< MIN_TOKEN_LEN символов)
-    - Возвращает строку лемматизированных токенов через пробел
+  - Токенизирует очищенный текст по пробелам
+  - Для каждого токена определяет лемму через pymorphy2
+  - Фильтрует токены по части речи (ALLOWED_POS из settings)
+  - Удаляет стоп-слова (встроенные NLTK + пользовательский список)
+  - Удаляет слишком короткие токены (< MIN_TOKEN_LEN символов)
+  - Возвращает строку лемматизированных токенов через пробел
+
+Зависимости:
+  pip install pymorphy2 pymorphy2-dicts-ru nltk
 
 Запуск:
-    python -m nlp.lemmatizer          # обрабатывает PROCESSED_CSV
-    python -m nlp.lemmatizer --demo   # примеры в терминале
+  python -m nlp.lemmatizer          # обрабатывает PROCESSED_CSV
+  python -m nlp.lemmatizer --demo   # примеры в терминале
 """
 
 import argparse
@@ -22,8 +25,31 @@ from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
-import pymorphy2
-from nltk.corpus import stopwords
+
+# ── Совместимость pymorphy2 с Python 3.12 ────────────────────────────────────
+# В Python 3.12 удалён pkg_resources (часть setuptools).
+# pymorphy2 использует его для поиска словарей через entry_points.
+# Решение 1 (рекомендуется): pip install setuptools pymorphy2-dicts-ru
+# Решение 2 (fallback): заглушка pkg_resources через importlib.metadata
+import sys
+import types
+
+try:
+    import pymorphy3 as _pymorphy
+    _MORPH_LIB = "pymorphy3"
+except ImportError:
+    try:
+        import pymorphy3 as _pymorphy  # type: ignore
+        _MORPH_LIB = "pymorphy3"
+    except ImportError:
+        raise ImportError(
+            "Не найдена библиотека морфологического анализа.\n"
+            "Установите одну из:\n"
+            "  pip install setuptools pymorphy2-dicts-ru   (рекомендуется)\n"
+            "  pip install pymorphy3                       (Python 3.12+)"
+        )
+
+# nltk не используется — стоп-слова берём из stopwords_ru.txt
 
 from config.settings import (
     PROCESSED_CSV,
@@ -35,41 +61,71 @@ from config.settings import (
 log = logging.getLogger(__name__)
 
 # ── Инициализация анализатора ─────────────────────────────────────────────────
-# MorphAnalyzer создаётся один раз на уровне модуля — это дорогая операция
-_morph = pymorphy2.MorphAnalyzer()
+# MorphAnalyzer создаётся один раз на уровне модуля — это дорогая операция.
+# Используем _pymorphy — алиас, поддерживающий pymorphy2 и pymorphy3.
+import logging as _log
+_log.getLogger(__name__).debug("Морфологический анализатор: %s", _MORPH_LIB)
+_morph = _pymorphy.MorphAnalyzer()
+
+
+# Встроенный базовый список русских стоп-слов.
+# Используется если stopwords_ru.txt не найден или пуст.
+# Покрывает служебные части речи и наиболее частотные слова.
+_BUILTIN_STOPWORDS = frozenset({
+    "и", "в", "во", "не", "что", "он", "на", "я", "с", "со", "как",
+    "а", "то", "все", "она", "так", "его", "но", "да", "ты", "к", "у",
+    "же", "вы", "за", "бы", "по", "только", "ее", "мне", "было", "вот",
+    "от", "меня", "еще", "нет", "о", "из", "ему", "теперь", "когда",
+    "даже", "ну", "вдруг", "ли", "если", "уже", "или", "ни", "быть",
+    "был", "него", "до", "вас", "нибудь", "опять", "уж", "вам", "сказал",
+    "ведь", "там", "потом", "себя", "ничего", "ей", "может", "они",
+    "тут", "где", "есть", "надо", "ней", "для", "мы", "тебя", "их",
+    "чем", "была", "сам", "чтоб", "без", "будто", "человек", "чего",
+    "раз", "тоже", "себе", "под", "будет", "ж", "тогда", "кто", "этот",
+    "того", "потому", "этого", "какой", "совсем", "ним", "здесь", "этом",
+    "один", "почти", "мой", "тем", "чтобы", "нее", "кажется", "сейчас",
+    "были", "куда", "зачем", "всех", "никогда", "можно", "при", "наконец",
+    "два", "об", "другой", "хоть", "после", "над", "больше", "тот",
+    "через", "эти", "нас", "про", "всего", "них", "какая", "много",
+    "разве", "три", "эту", "моя", "впрочем", "хорошо", "свою", "этой",
+    "перед", "иногда", "лучше", "чуть", "том", "нельзя", "такой",
+    "им", "более", "всегда", "конечно", "всю", "между",
+    # вспомогательные глаголы
+    "быть", "стать", "являться", "иметь", "делать", "говорить",
+    "мочь", "хотеть", "знать", "думать", "видеть", "получить",
+})
 
 
 def _load_stopwords() -> frozenset[str]:
     """
-    Загружает объединённый список стоп-слов:
-      1. NLTK Russian stopwords
-      2. Пользовательский файл STOPWORDS_PATH (если существует)
+    Загружает стоп-слова из двух источников (без зависимости от NLTK):
+      1. Встроенный базовый список (_BUILTIN_STOPWORDS)
+      2. Пользовательский файл nlp/stopwords_ru.txt
 
-    Возвращает frozenset лемматизированных стоп-слов.
+    NLTK намеренно не используется — избегаем зависимости от
+    сетевого скачивания и проблем с SSL-сертификатами.
     """
-    # NLTK
-    try:
-        nltk_stops = set(stopwords.words("russian"))
-    except LookupError:
-        import nltk
-        nltk.download("stopwords", quiet=True)
-        nltk_stops = set(stopwords.words("russian"))
-
     # Пользовательский файл
     custom_stops: set[str] = set()
-    if Path(STOPWORDS_PATH).exists():
-        with open(STOPWORDS_PATH, encoding="utf-8") as f:
+    sw_path = Path(STOPWORDS_PATH)
+    if sw_path.exists():
+        with open(sw_path, encoding="utf-8") as f:
             for line in f:
                 word = line.strip().lower()
                 if word and not word.startswith("#"):
                     custom_stops.add(word)
-        log.debug("Загружено %d пользовательских стоп-слов", len(custom_stops))
+        log.debug("Загружено %d стоп-слов из %s", len(custom_stops), sw_path.name)
     else:
-        log.warning("Файл стоп-слов не найден: %s (используются только NLTK)", STOPWORDS_PATH)
+        log.warning(
+            "Файл стоп-слов не найден: %s — используется только встроенный список.",
+            STOPWORDS_PATH,
+        )
 
-    combined = nltk_stops | custom_stops
-    log.info("Стоп-слов всего: %d (NLTK=%d, custom=%d)",
-             len(combined), len(nltk_stops), len(custom_stops))
+    combined = _BUILTIN_STOPWORDS | custom_stops
+    log.info(
+        "Стоп-слов загружено: %d (встроенных=%d, из файла=%d)",
+        len(combined), len(_BUILTIN_STOPWORDS), len(custom_stops),
+    )
     return frozenset(combined)
 
 

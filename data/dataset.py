@@ -53,17 +53,29 @@ def load_raw(path: Path = RAW_CSV) -> pd.DataFrame:
 
 # Загружает CSV с комментариями (если существует).
 def load_comments(path: Path | None = None) -> pd.DataFrame:
-    if path is None:
-        path = RAW_CSV.parent / "comments_raw.csv"
+    if path is not None:
+        if not path.exists():
+            log.warning("Файл комментариев не найден: %s", path)
+            return pd.DataFrame(columns=["post_id", "comment_id", "text", "date", "views"])
+        df = pd.read_csv(path, encoding="utf-8")
+    else:
+        comment_files = sorted(RAW_CSV.parent.glob("*_comments_raw.csv"))
+        if not comment_files:
+            log.warning("Файлы комментариев не найдены в %s", RAW_CSV.parent)
+            return pd.DataFrame(columns=["post_id", "comment_id", "text", "date", "views"])
 
-    if not path.exists():
-        log.warning("Файл комментариев не найден: %s", path)
-        return pd.DataFrame(columns=["post_id", "comment_id", "text", "date", "views"])
-    
-    df = pd.read_csv(path, encoding="utf-8")
+        frames = [pd.read_csv(file, encoding="utf-8") for file in comment_files]
+        df = pd.concat(frames, ignore_index=True)
+
+        if "is_section_header" in df.columns:
+            df = df[df["is_section_header"] != True].copy()
+
     df["date"] = pd.to_datetime(df["date"], utc=True, errors="coerce")
     df["text"] = df["text"].fillna("").astype(str)
-    log.info("Загружено %d комментариев из %s", len(df), path)
+    if path is not None:
+        log.info("Загружено %d комментариев из %s", len(df), path)
+    else:
+        log.info("Загружено %d комментариев из %d файлов", len(df), len(comment_files))
     return df
 
 

@@ -245,6 +245,22 @@ def run_pipeline(
         )
 
     df = pd.read_csv(input_path, encoding="utf-8")
+    if "text_lemma" not in df.columns:
+        missing = [c for c in ["text_clean", "text_lemma"] if c not in df.columns]
+        hint = ""
+        if "text_clean" not in df.columns:
+            hint = """Запустите сначала:
+                python -m nlp.preprocessor
+                python -m nlp.lemmatizer"""
+        elif "text_lemma" not in df.columns:
+            hint = """Колонка text_clean найдена, но text_lemma отсутствует.
+                Запустите: python -m nlp.lemmatizer"""
+        raise KeyError(
+            f"Колонка 'text_lemma' не найдена в {input_path.name}.\n"
+            f"Доступные колонки: {list(df.columns)}\n"
+            f"{hint}"
+        )
+
     df["text_lemma"] = df["text_lemma"].fillna("").astype(str)
 
     # Убираем строки без лемматизированного текста
