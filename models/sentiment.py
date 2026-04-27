@@ -22,6 +22,7 @@ import logging
 import joblib
 import numpy as np
 import pandas as pd
+import inspect
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     classification_report,
@@ -51,8 +52,29 @@ log = logging.getLogger(__name__)
 _VECTORIZER_PATH = MODELS_DIR / "logreg_vectorizer.pkl"
 
 
-# ── Загрузка данных ───────────────────────────────────────────────────────────
+def _build_logreg(params: dict) -> LogisticRegression:
+    """Попытаться создать LogisticRegression с `params`. При ошибке TypeError
+    фильтруем неподдерживаемые ключи по сигнатуре конструктора и пробуем снова.
+    Это делает код совместимее с разными версиями scikit-learn.
+    """
+    try:
+        return LogisticRegression(**params)
+    except TypeError as e:
+        log.warning("LogisticRegression init failed: %s. Trying fallback.", e)
+        try:
+            sig = inspect.signature(LogisticRegression)
+            allowed = set(sig.parameters.keys()) - {"self"}
+            filtered = {k: v for k, v in params.items() if k in allowed}
+            if not filtered:
+                raise
+            log.info("Using filtered LogisticRegression params: %s", ", ".join(filtered.keys()))
+            return LogisticRegression(**filtered)
+        except Exception:
+            log.exception("Failed to construct LogisticRegression after filtering parameters.")
+            raise
 
+
+# ── Загрузка данных ───────────────────────────────────────────────────────────
 def load_labeled_corpus() -> pd.DataFrame:
     """
     Объединяет обработанный корпус (text_lemma) с разметкой тональности.
@@ -169,7 +191,7 @@ def train(
 
     # ── Кросс-валидация (на train) ────────────────────────────────────────────
     log.info("Кросс-валидация (%d-fold, метрика: f1_macro)...", cv_folds)
-    model_cv = LogisticRegression(**logreg_params)
+    model_cv = _build_logreg(logreg_params)
     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
     cv_scores = cross_val_score(model_cv, X_train, y_train,
                                 cv=cv, scoring="f1_macro", n_jobs=-1)
@@ -181,7 +203,7 @@ def train(
 
     # ── Итоговое обучение на всём train ──────────────────────────────────────
     log.info("Обучение LogisticRegression на train...")
-    model = LogisticRegression(**logreg_params)
+    model = _build_logreg(logreg_params)
     model.fit(X_train, y_train)
 
     # ── Оценка на test ────────────────────────────────────────────────────────
@@ -226,7 +248,6 @@ def train(
 
 
 # ── Сохранение / загрузка ─────────────────────────────────────────────────────
-
 def save_model(
     vectorizer: TfidfVectorizer,
     model: LogisticRegression,
@@ -257,7 +278,6 @@ def load_model(
 
 
 # ── Интерпретация модели ──────────────────────────────────────────────────────
-
 def top_features(
     vectorizer: TfidfVectorizer,
     model: LogisticRegression,
@@ -283,8 +303,6 @@ def top_features(
 
     return result
 
-
-# ── CLI ───────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     logging.basicConfig(

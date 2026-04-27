@@ -5,12 +5,12 @@ analysis/event_analysis.py
 на динамику тональности и публикационной активности.
 
 Что строит:
-    activity_timeline()     — число публикаций по дням/неделям/месяцам
-    sentiment_timeline()    — динамика тональности по периодам
-    channel_comparison()    — сравнение каналов по тональности во времени
-    reaction_timeline()     — динамика реакций и просмотров
-    event_impact()          — «окна» вокруг ключевых событий: δ тональности
-    orientation_divergence()— расхождение гос. vs общ. каналов по времени
+    activity_timeline()      — число публикаций по дням/неделям/месяцам
+    sentiment_timeline()     — динамика тональности по периодам
+    channel_comparison()     — сравнение каналов по тональности во времени
+    reaction_timeline()      — динамика реакций и просмотров
+    event_impact()           — «окна» вокруг ключевых событий: δ тональности
+    orientation_divergence() — расхождение гос. vs общ. каналов по времени
 
 Все функции возвращают DataFrame, готовый к передаче в viz/plotter.py.
 
@@ -34,7 +34,6 @@ log = logging.getLogger(__name__)
 
 
 # ── Загрузка ──────────────────────────────────────────────────────────────────
-
 def load_predictions() -> pd.DataFrame:
     """
     Загружает predictions.csv и приводит типы.
@@ -59,7 +58,6 @@ def load_predictions() -> pd.DataFrame:
 
 
 # ── Вспомогательные функции ───────────────────────────────────────────────────
-
 def _events_df() -> pd.DataFrame:
     """Конвертирует список EVENTS из settings в DataFrame."""
     rows = []
@@ -83,7 +81,6 @@ def _resample(
 
 
 # ── Динамика активности ───────────────────────────────────────────────────────
-
 def activity_timeline(
     df: pd.DataFrame,
     freq: str = "W",
@@ -116,7 +113,6 @@ def activity_timeline(
 
 
 # ── Динамика тональности ──────────────────────────────────────────────────────
-
 def sentiment_timeline(
     df: pd.DataFrame,
     freq: str = "W",
@@ -148,14 +144,12 @@ def sentiment_timeline(
             "pct_negative":    n_neg / n * 100,
             "sentiment_index": (n_pos - n_neg) / n,
         })
-
     result = pd.DataFrame(rows)
     log.info("sentiment_timeline: %d периодов (freq=%s)", len(result), freq)
     return result
 
 
 # ── Сравнение каналов ─────────────────────────────────────────────────────────
-
 def channel_comparison(
     df: pd.DataFrame,
     freq: str = "ME",
@@ -204,7 +198,6 @@ def channel_comparison(
 
 
 # ── Расхождение гос. vs общ. ──────────────────────────────────────────────────
-
 def orientation_divergence(
     df: pd.DataFrame,
     freq: str = "W",
@@ -246,7 +239,6 @@ def orientation_divergence(
 
 
 # ── Реакции и просмотры ───────────────────────────────────────────────────────
-
 def reaction_timeline(
     df: pd.DataFrame,
     freq: str = "W",
@@ -279,7 +271,6 @@ def reaction_timeline(
 
 
 # ── Оконный анализ вокруг событий ────────────────────────────────────────────
-
 def event_impact(
     df: pd.DataFrame,
     window_days: int = 7,
@@ -335,7 +326,6 @@ def event_impact(
             "n_after":     n_after,
             "window_days": window_days,
         })
-
     result = pd.DataFrame(rows)
     log.info("event_impact (window=%d дней):\n%s",
              window_days, result.to_string(index=False))
@@ -343,7 +333,6 @@ def event_impact(
 
 
 # ── Основной пайплайн ─────────────────────────────────────────────────────────
-
 def run_pipeline(summary_only: bool = False) -> dict[str, pd.DataFrame]:
     """
     Запускает весь ивент-анализ и сохраняет результаты в RESULTS_DIR.
@@ -352,7 +341,6 @@ def run_pipeline(summary_only: bool = False) -> dict[str, pd.DataFrame]:
         Словарь {name: DataFrame} для передачи в viz/plotter.py
     """
     df = load_predictions()
-
     results = {
         "activity_weekly":       activity_timeline(df, freq="W"),
         "activity_monthly":      activity_timeline(df, freq="ME"),
@@ -388,11 +376,8 @@ def run_pipeline(summary_only: bool = False) -> dict[str, pd.DataFrame]:
 
     log.info("\nВлияние событий на тональность:")
     log.info(results["event_impact"].to_string(index=False))
-
     return results
 
-
-# ── CLI ───────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     import argparse
@@ -412,3 +397,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    

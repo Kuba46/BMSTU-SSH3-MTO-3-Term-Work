@@ -39,7 +39,6 @@ REACTION_WEIGHT = 5
 
 
 # ── Загрузка ──────────────────────────────────────────────────────────────────
-
 def load_predictions() -> pd.DataFrame:
     """Загружает predictions.csv с предсказанной тональностью."""
     if not PREDICTIONS_CSV.exists():
@@ -59,7 +58,6 @@ def load_predictions() -> pd.DataFrame:
 
 
 # ── Взвешенный индекс тональности ────────────────────────────────────────────
-
 def weighted_sentiment_index(
     df: pd.DataFrame,
     reaction_weight: int = REACTION_WEIGHT,
@@ -93,7 +91,6 @@ def weighted_sentiment_index(
 
 
 # ── Агрегация по периодам ─────────────────────────────────────────────────────
-
 def aggregate_by_period(
     df: pd.DataFrame,
     freq: str = "W",
@@ -134,7 +131,6 @@ def aggregate_by_period(
 
 
 # ── Агрегация по каналам ──────────────────────────────────────────────────────
-
 def aggregate_by_channel(
     df: pd.DataFrame,
     reaction_weight: int = REACTION_WEIGHT,
@@ -180,7 +176,6 @@ def aggregate_by_channel(
 
 
 # ── Агрегация по ориентации ───────────────────────────────────────────────────
-
 def aggregate_by_orientation(
     df: pd.DataFrame,
     reaction_weight: int = REACTION_WEIGHT,
@@ -218,7 +213,6 @@ def aggregate_by_orientation(
 
 
 # ── Наиболее охватные посты ───────────────────────────────────────────────────
-
 def top_influential_posts(
     df: pd.DataFrame,
     n: int = 5,
@@ -251,7 +245,6 @@ def top_influential_posts(
 
 
 # ── Итоговая сводная таблица ──────────────────────────────────────────────────
-
 def summary_table(df: pd.DataFrame) -> pd.DataFrame:
     """
     Единая сводная таблица по всему корпусу.
@@ -286,7 +279,6 @@ def summary_table(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ── Основной пайплайн ─────────────────────────────────────────────────────────
-
 def run_pipeline(table_only: bool = False) -> dict[str, pd.DataFrame]:
     """
     Запускает полную агрегацию и сохраняет результаты.
@@ -327,8 +319,6 @@ def run_pipeline(table_only: bool = False) -> dict[str, pd.DataFrame]:
 
     return results
 
-
-# ── CLI ───────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     import argparse

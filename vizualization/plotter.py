@@ -72,7 +72,7 @@ plt.rcParams.update({
     "grid.linestyle":    "--",
 })
 
-sns.set_palette("muted")
+sns.set_theme(style="whitegrid", context="notebook", palette="muted")
 
 
 # ── Вспомогательные функции ───────────────────────────────────────────────────
@@ -101,6 +101,12 @@ def _add_event_markers(
             alpha=0.85,
             va="top",
             ha="right",
+            bbox={
+                "boxstyle": "round,pad=0.15",
+                "facecolor": "white",
+                "edgecolor": "none",
+                "alpha": 0.65,
+            },
         )
 
 
@@ -108,7 +114,8 @@ def _save(fig: plt.Figure, name: str, show: bool = False) -> Path:
     """Сохраняет фигуру в FIGURES_DIR и опционально показывает."""
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     path = FIGURES_DIR / f"{name}.png"
-    fig.savefig(path, dpi=FIGURE_DPI, bbox_inches="tight")
+    bbox_inches = None if fig.get_constrained_layout() else "tight"
+    fig.savefig(path, dpi=FIGURE_DPI, bbox_inches=bbox_inches)
     log.info("График сохранён → %s", path)
     if show:
         plt.show()
@@ -249,15 +256,17 @@ def plot_channel_heatmap(
     """
     fig, ax = plt.subplots(figsize=(14, 7))
 
+    show_annotations = df_wide.shape[0] * df_wide.shape[1] <= 60
+
     sns.heatmap(
         df_wide.T,            # каналы по оси Y, месяцы по оси X
         ax=ax,
-        cmap="RdYlGn",        # красный → жёлтый → зелёный
+        cmap="vlag",         # мягкая дивергирующая палитра
         center=0,
         vmin=-1, vmax=1,
         linewidths=0.4,
         linecolor="#ecf0f1",
-        annot=True,
+        annot=show_annotations,
         fmt=".2f",
         annot_kws={"fontsize": 8},
         cbar_kws={"label": "Индекс тональности S"},
@@ -268,7 +277,7 @@ def plot_channel_heatmap(
     ax.set_ylabel("Telegram-канал")
     plt.xticks(rotation=30, ha="right")
     plt.yticks(rotation=0)
-    fig.tight_layout()
+    fig.subplots_adjust(bottom=0.18, left=0.22, right=0.96, top=0.92)
 
     return _save(fig, "fig_2_4_channel_heatmap", show)
 
@@ -300,23 +309,37 @@ def plot_orientation_divergence(
     ax1.set_title("Рис. 2.5. Сравнение тональности государственных\n"
                   "и общественных Telegram-каналов")
     ax1.legend()
+    ax1.set_ylim(-1.0, 1.0)
     _add_event_markers(ax1, ymax=1.0)
 
     # Нижний: расхождение
     divergence = df2["divergence"].values
+    divergence_series = pd.Series(divergence, index=periods)
+    smooth = divergence_series.rolling(window=3, center=True, min_periods=1).mean().values
+
     ax2.bar(periods, divergence,
             width=5,
             color=[COLOR_STATE if d >= 0 else COLOR_PUBLIC for d in divergence],
-            alpha=0.7)
+            alpha=0.25)
+    ax2.plot(periods, smooth, color="#2c3e50", linewidth=1.8, label="Сглаженный тренд")
+    ax2.fill_between(periods, smooth, 0,
+                     where=(smooth >= 0),
+                     color=COLOR_STATE, alpha=0.12)
+    ax2.fill_between(periods, smooth, 0,
+                     where=(smooth < 0),
+                     color=COLOR_PUBLIC, alpha=0.12)
     ax2.axhline(0, color="#bdc3c7", linewidth=0.8)
     ax2.set_xlabel("Дата")
     ax2.set_ylabel("Расхождение Δ S(t)")
     ax2.set_title("Расхождение (гос. − общ.): >0 → гос. позитивнее")
-    _add_event_markers(ax2)
+    _add_event_markers(ax2, alpha=0.35)
     ax2.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
     ax2.xaxis.set_major_locator(mdates.MonthLocator())
     plt.xticks(rotation=30, ha="right")
-    fig.tight_layout()
+    ax2.legend(loc="upper left", fontsize=8, frameon=False)
+    max_abs = float(np.nanmax(np.abs(divergence))) if len(divergence) else 0.1
+    ax2.set_ylim(-max_abs * 1.25 if max_abs > 0 else -0.1, max_abs * 1.25 if max_abs > 0 else 0.1)
+    fig.subplots_adjust(hspace=0.28, bottom=0.14, top=0.92)
 
     return _save(fig, "fig_2_5_orientation_divergence", show)
 
@@ -371,6 +394,7 @@ def plot_top_terms(
     """
     Горизонтальные bar-chart'ы с топ-словами для каждого кластера.
     cluster_labels: {cluster_id: [word1, word2, ...]}
+        или {cluster_id: [{"term": ..., "weight": ...}, ...]}
     """
     n_clusters = len(cluster_labels)
     cols       = min(3, n_clusters)
@@ -382,25 +406,36 @@ def plot_top_terms(
 
     palette = sns.color_palette("tab10", n_clusters)
 
+    def _coerce_terms(raw_items: list) -> pd.DataFrame:
+        if raw_items and isinstance(raw_items[0], dict):
+            frame = pd.DataFrame(raw_items)
+            if {"term", "weight"}.issubset(frame.columns):
+                return frame[["term", "weight"]].copy()
+
+        terms = list(raw_items)
+        if not terms:
+            return pd.DataFrame(columns=["term", "weight"])
+        weights = np.linspace(len(terms), 1, len(terms), dtype=float)
+        return pd.DataFrame({"term": terms, "weight": weights})
+
     for cl_id, words in sorted(cluster_labels.items()):
         ax    = axes[cl_id]
-        words = words[:10]
-        y_pos = range(len(words))
+        frame = _coerce_terms(words).head(10).sort_values("weight", ascending=True)
+        y_pos = np.arange(len(frame))
 
-        # Если есть модель — используем веса центроида; иначе — равные
-        if km_model is not None:
-            centroid = km_model.cluster_centers_[cl_id]
-        else:
-            centroid = None
-
-        ax.barh(y_pos, [1] * len(words),
-                color=palette[cl_id], alpha=0.75)
+        ax.barh(
+            y_pos,
+            frame["weight"],
+            color=palette[cl_id],
+            alpha=0.80,
+        )
         ax.set_yticks(list(y_pos))
-        ax.set_yticklabels(words, fontsize=9)
+        ax.set_yticklabels(frame["term"].tolist(), fontsize=9)
         ax.invert_yaxis()
-        ax.set_xlabel("Вес (TF-IDF)")
+        ax.set_xlabel("Вес центроида")
         ax.set_title(f"Кластер {cl_id}", fontsize=10, fontweight="bold")
-        ax.set_xticks([])
+        ax.xaxis.set_major_formatter(mticker.FormatStrFormatter("%.3f"))
+        ax.margins(x=0.05)
 
     # Скрываем лишние подграфики
     for i in range(n_clusters, len(axes)):
@@ -429,23 +464,42 @@ def plot_confusion_matrix(
         labels = ["Негативная", "Нейтральная", "Позитивная"]
 
     cm_arr = np.array(cm)
-    fig, ax = plt.subplots(figsize=(6, 5))
+    fig, ax = plt.subplots(figsize=(6.5, 5.5))
+
+    row_sums = cm_arr.sum(axis=1, keepdims=True)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        cm_pct = np.divide(
+            cm_arr,
+            row_sums,
+            out=np.zeros_like(cm_arr, dtype=float),
+            where=row_sums != 0,
+        )
+
+    annot = np.empty_like(cm_arr, dtype=object)
+    for i in range(cm_arr.shape[0]):
+        for j in range(cm_arr.shape[1]):
+            count = cm_arr[i, j]
+            pct = cm_pct[i, j]
+            annot[i, j] = f"{count}\n{pct:.0%}"
 
     sns.heatmap(
-        cm_arr,
+        cm_pct,
         ax=ax,
-        annot=True,
-        fmt="d",
+        annot=annot,
+        fmt="",
         cmap="Blues",
+        vmin=0,
+        vmax=1,
         xticklabels=labels,
         yticklabels=labels,
         linewidths=0.5,
-        cbar=False,
+        cbar=True,
+        cbar_kws={"label": "Доля по истинному классу"},
     )
     ax.set_xlabel("Предсказанная метка")
     ax.set_ylabel("Истинная метка")
     model_display = "LogisticRegression" if model_name == "logreg" else "SVM (LinearSVC)"
-    ax.set_title(f"Рис. 2.8. Матрица ошибок классификатора\n({model_display})")
+    ax.set_title(f"Рис. 2.8. Матрица ошибок классификатора\n({model_display}, доли по строкам)")
     fig.tight_layout()
 
     return _save(fig, f"fig_2_8_confusion_matrix_{model_name}", show)
@@ -459,20 +513,33 @@ def plot_model_comparison(
 ) -> Path:
     """
     Grouped bar chart: LogReg vs SVM по метрикам Precision/Recall/F1.
-    compare_df: Метрика, LogReg, SVM (строки — метрики, значения — числа).
+    compare_df: либо `Метрика`, либо `metric` (строки — метрики, значения — числа).
     """
     metrics_to_plot = [
         "Precision (macro)", "Recall (macro)", "F1 (macro)", "CV F1 (среднее)"
     ]
-    sub = compare_df[compare_df["Метрика"].isin(metrics_to_plot)].copy()
+    metric_col = "Метрика" if "Метрика" in compare_df.columns else "metric"
+    logreg_col = "LogReg" if "LogReg" in compare_df.columns else "logreg"
+    svm_col = "SVM" if "SVM" in compare_df.columns else "svm"
+
+    label_map = {
+        "precision_macro": "Precision (macro)",
+        "recall_macro": "Recall (macro)",
+        "f1_macro": "F1 (macro)",
+        "cv_f1_mean": "CV F1 (среднее)",
+    }
+
+    sub = compare_df.copy()
+    sub[metric_col] = sub[metric_col].replace(label_map)
+    sub = sub[sub[metric_col].isin(metrics_to_plot)].copy()
 
     x     = np.arange(len(sub))
     width = 0.35
 
     fig, ax = plt.subplots(figsize=(10, 5))
 
-    lr_vals  = pd.to_numeric(sub["LogReg"], errors="coerce").values
-    svm_vals = pd.to_numeric(sub["SVM"],    errors="coerce").values
+    lr_vals  = pd.to_numeric(sub[logreg_col], errors="coerce").values
+    svm_vals = pd.to_numeric(sub[svm_col],    errors="coerce").values
 
     bars1 = ax.bar(x - width / 2, lr_vals,  width, label="LogisticRegression",
                    color=COLOR_STATE,  alpha=0.8)
@@ -480,8 +547,8 @@ def plot_model_comparison(
                    color=COLOR_PUBLIC, alpha=0.8)
 
     ax.set_xticks(x)
-    ax.set_xticklabels(sub["Метрика"].values, rotation=15, ha="right")
-    ax.set_ylim(0, 1.1)
+    ax.set_xticklabels(sub[metric_col].values, rotation=15, ha="right")
+    ax.set_ylim(0, max(1.1, float(np.nanmax([lr_vals, svm_vals])) * 1.15))
     ax.set_ylabel("Значение метрики")
     ax.set_title("Рис. 2.9. Сравнение качества классификаторов тональности\n"
                  "(LogisticRegression vs SVM, тестовая выборка)")
@@ -504,19 +571,50 @@ def plot_event_impact(
     df: event_label, delta (может быть None).
     """
     df2 = df.dropna(subset=["delta"]).copy()
+    df2 = df2.sort_values("delta")
 
     fig, ax = plt.subplots(figsize=(10, 6))
+
+    if df2.empty:
+        ax.axis("off")
+        ax.text(
+            0.5, 0.5,
+            "Нет данных для оценки влияния событий",
+            ha="center", va="center",
+            fontsize=11,
+        )
+        return _save(fig, "fig_2_10_event_impact", show)
+
+    if np.allclose(df2["delta"].values, 0):
+        labels = df2["event_label"].astype(str)
+        if "n_before" in df2.columns and "n_after" in df2.columns:
+            labels = labels + " (n=" + df2["n_before"].astype(int).astype(str) + "/" + df2["n_after"].astype(int).astype(str) + ")"
+        y_pos = np.arange(len(df2))
+        ax.scatter(np.zeros(len(df2)), y_pos, s=60, color="#7f8c8d", alpha=0.8)
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(labels)
+        ax.axvline(0, color="#7f8c8d", linewidth=0.8)
+        ax.set_xlim(-0.1, 0.1)
+        ax.set_xlabel("Δ индекса тональности (после − до события)")
+        ax.set_title("Рис. 2.10. Изменение тональности дискуссии\n"
+                     "в ±7 дней вокруг ключевых событий дела Долиной")
+        ax.invert_yaxis()
+        ax.grid(axis="x", alpha=0.3)
+        fig.tight_layout()
+        return _save(fig, "fig_2_10_event_impact", show)
 
     colors = [COLOR_POSITIVE if d >= 0 else COLOR_NEGATIVE
               for d in df2["delta"]]
     bars = ax.barh(df2["event_label"], df2["delta"],
                    color=colors, alpha=0.8, height=0.5)
     ax.axvline(0, color="#7f8c8d", linewidth=0.8)
-    ax.bar_label(bars, fmt="%.3f", fontsize=9, padding=3)
+    ax.bar_label(bars, fmt="%+.3f", fontsize=9, padding=3)
     ax.set_xlabel("Δ индекса тональности (после − до события)")
     ax.set_title("Рис. 2.10. Изменение тональности дискуссии\n"
                  "в ±7 дней вокруг ключевых событий дела Долиной")
     ax.invert_yaxis()
+    max_abs = float(np.nanmax(np.abs(df2["delta"])))
+    ax.set_xlim(-max_abs * 1.15 if max_abs > 0 else -0.1, max_abs * 1.15 if max_abs > 0 else 0.1)
     fig.tight_layout()
 
     return _save(fig, "fig_2_10_event_impact", show)

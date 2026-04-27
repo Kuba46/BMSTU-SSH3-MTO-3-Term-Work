@@ -3,14 +3,14 @@ analysis/cluster.py
 ===================
 Кластеризация корпуса: тематические группы (K-Means) и
 выявление аномальных всплесков активности (DBSCAN).
- 
+
 Функции:
     run_kmeans()        — разбивает корпус на k тематических кластеров
     elbow_analysis()    — метод «локтя» для подбора оптимального k
     run_dbscan()        — находит всплески/аномалии в TF-IDF-пространстве
     label_clusters()    — присваивает каждому кластеру топ-слова как метку
     tsne_projection()   — проецирует матрицу в 2D для визуализации
- 
+
 Запуск:
     python -m analysis.cluster            # K-Means + DBSCAN
     python -m analysis.cluster --elbow    # только метод «локтя»
@@ -20,10 +20,11 @@ analysis/cluster.py
 
 import argparse
 import logging
+import json
 
 import numpy as np
 import pandas as pd
-import scipy.spatial as sp
+import scipy.sparse as sp
 
 from sklearn.cluster import KMeans, DBSCAN
 from sklearn.manifold import TSNE
@@ -45,10 +46,9 @@ from config.settings import (
 )
 
 log = logging.getLogger(__name__)
- 
- 
+
+
 # ── Загрузка артефактов ───────────────────────────────────────────────────────
- 
 def _load_matrix_and_corpus() -> tuple[sp.csr_matrix, pd.DataFrame]:
     """
     Загружает TF-IDF-матрицу и корпус.
@@ -56,9 +56,9 @@ def _load_matrix_and_corpus() -> tuple[sp.csr_matrix, pd.DataFrame]:
     иначе — processed.csv.
     """
     from nlp.vectorizer import load_matrix
- 
+
     matrix, vocab = load_matrix(TFIDF_MATRIX, TFIDF_VOCAB)
- 
+
     source = PREDICTIONS_CSV if PREDICTIONS_CSV.exists() else PROCESSED_CSV
     if not source.exists():
         raise FileNotFoundError(
@@ -67,7 +67,7 @@ def _load_matrix_and_corpus() -> tuple[sp.csr_matrix, pd.DataFrame]:
         )
     df = pd.read_csv(source, encoding="utf-8")
     df["text_lemma"] = df["text_lemma"].fillna("").astype(str)
- 
+
     # Матрица и корпус должны совпадать по числу строк
     if matrix.shape[0] != len(df):
         raise ValueError(
@@ -79,7 +79,6 @@ def _load_matrix_and_corpus() -> tuple[sp.csr_matrix, pd.DataFrame]:
  
  
 # ── Метод «локтя» ─────────────────────────────────────────────────────────────
- 
 def elbow_analysis(
     matrix: sp.csr_matrix,
     k_range=KMEANS_K_RANGE,
@@ -94,11 +93,11 @@ def elbow_analysis(
         (используется в viz/plotter.py для построения графика «локтя»)
     """
     log.info("Метод «локтя»: проверяем k = %s...", list(k_range))
- 
+
     # L2-нормализуем матрицу — это улучшает качество K-Means
     # (после нормализации евклидово расстояние ≈ косинусное)
     X = normalize(matrix, norm="l2")
- 
+
     records = []
     for k in k_range:
         km = KMeans(
@@ -111,12 +110,11 @@ def elbow_analysis(
         km.fit(X)
         records.append({"k": k, "inertia": km.inertia_})
         log.info("  k=%2d  inertia=%.2f", k, km.inertia_)
- 
+
     return pd.DataFrame(records)
- 
- 
+
+
 # ── K-Means ───────────────────────────────────────────────────────────────────
- 
 def run_kmeans(
     matrix: sp.csr_matrix,
     n_clusters: int = KMEANS_N_CLUSTERS,
@@ -124,20 +122,20 @@ def run_kmeans(
 ) -> tuple[KMeans, np.ndarray]:
     """
     Запускает K-Means с k-means++ инициализацией.
- 
+
     Args:
         matrix:     TF-IDF матрица (разреженная)
         n_clusters: число кластеров
         random_state: seed
- 
+
     Returns:
         (fitted_model, labels) где labels — массив меток кластеров
         длиной = числу документов
     """
     log.info("K-Means: n_clusters=%d...", n_clusters)
- 
+
     X = normalize(matrix, norm="l2")
- 
+
     km = KMeans(
         n_clusters=n_clusters,
         init="k-means++",
@@ -147,18 +145,17 @@ def run_kmeans(
         verbose=0,
     )
     km.fit(X)
- 
+
     labels = km.labels_
     unique, counts = np.unique(labels, return_counts=True)
- 
+
     log.info("K-Means завершён. Распределение по кластерам:")
     for cl, cnt in zip(unique, counts):
         log.info("  Кластер %d: %d документов (%.1f%%)", cl, cnt,
                  cnt / len(labels) * 100)
- 
     return km, labels
- 
- 
+
+
 def label_clusters(
     km: KMeans,
     vocab: dict[str, int],
@@ -167,12 +164,12 @@ def label_clusters(
     """
     Присваивает каждому кластеру список топ-N слов по близости
     к центроиду кластера.
- 
+
     Args:
-        km:     обученная модель KMeans
-        vocab:  словарь {term: column_index} из vectorizer
-        n_top:  число слов-меток
- 
+        km:    обученная модель KMeans
+        vocab: словарь {term: column_index} из vectorizer
+        n_top: число слов-меток
+    
     Returns:
         {cluster_id: [word1, word2, ...]}
     """
@@ -180,22 +177,53 @@ def label_clusters(
     idx_to_term = {v: k for k, v in vocab.items()}
     n_terms     = len(vocab)
     result      = {}
- 
+
     for cl_id, centroid in enumerate(km.cluster_centers_):
         # Берём только те индексы, что реально есть в словаре
         valid_idx = [i for i in range(min(len(centroid), n_terms))]
         top_idx   = np.argsort(centroid[valid_idx])[::-1][:n_top]
         result[cl_id] = [idx_to_term.get(i, f"term_{i}") for i in top_idx]
- 
+
     log.info("Метки кластеров (топ-%d слов):", n_top)
     for cl_id, words in result.items():
         log.info("  Кластер %d: %s", cl_id, ", ".join(words))
- 
     return result
- 
- 
+
+
+def save_cluster_labels(
+    km: KMeans,
+    vocab: dict[str, int],
+    n_top: int = 10,
+    output_path=RESULTS_DIR / "cluster_labels.json",
+) -> dict[int, list[dict[str, float]]]:
+    """
+    Сохраняет топ-слова кластеров вместе с весами центроидов.
+
+    Это позволяет визуализациям показывать реальные значения,
+    а не одинаковые декоративные бары.
+    """
+    idx_to_term = {v: k for k, v in vocab.items()}
+    n_terms = len(vocab)
+    result: dict[int, list[dict[str, float]]] = {}
+
+    for cl_id, centroid in enumerate(km.cluster_centers_):
+        valid_idx = range(min(len(centroid), n_terms))
+        top_idx = np.argsort(centroid[list(valid_idx)])[::-1][:n_top]
+        result[cl_id] = [
+            {
+                "term": idx_to_term.get(i, f"term_{i}"),
+                "weight": float(centroid[i]),
+            }
+            for i in top_idx
+        ]
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+    log.info("Метки кластеров сохранены → %s", output_path)
+    return result
+
+
 # ── DBSCAN ────────────────────────────────────────────────────────────────────
- 
 def run_dbscan(
     matrix: sp.csr_matrix,
     eps: float = DBSCAN_EPS,
@@ -204,14 +232,14 @@ def run_dbscan(
     """
     Запускает DBSCAN для выявления плотных скоплений
     и «шумовых» документов (аномалий/всплесков).
- 
+
     Метрика — косинусное расстояние: подходит для TF-IDF пространства,
     так как не зависит от длины документа.
- 
+
     Labels:
        ≥ 0  → номер кластера (плотная группа)
       -1    → шум (документ не вошёл ни в один кластер)
- 
+
     Returns:
         labels — массив меток длиной = числу документов
     """
@@ -219,11 +247,11 @@ def run_dbscan(
         "DBSCAN: eps=%.3f, min_samples=%d, метрика=cosine...",
         eps, min_samples,
     )
- 
+
     # DBSCAN с косинусной метрикой требует плотную матрицу
     # Для больших корпусов используем algorithm='ball_tree'
     X_dense = matrix.toarray()
- 
+
     dbscan = DBSCAN(
         eps=eps,
         min_samples=min_samples,
@@ -232,17 +260,16 @@ def run_dbscan(
         n_jobs=-1,
     )
     labels = dbscan.fit_predict(X_dense)
- 
+
     n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
     n_noise    = (labels == -1).sum()
     log.info(
         "DBSCAN завершён: кластеров=%d, шумовых документов=%d (%.1f%%)",
         n_clusters, n_noise, n_noise / len(labels) * 100,
     )
- 
     return labels
- 
- 
+
+
 def spike_documents(
     df: pd.DataFrame,
     dbscan_labels: np.ndarray,
@@ -250,26 +277,25 @@ def spike_documents(
     """
     Извлекает «шумовые» документы DBSCAN — потенциальные всплески активности.
     Сортирует по дате для удобства ивент-анализа.
- 
+
     Returns:
         DataFrame с колонками: date, channel_label, text, views, reactions_total
     """
     df = df.copy()
     df["dbscan_label"] = dbscan_labels
- 
+
     noise = df[df["dbscan_label"] == -1].copy()
     noise["date"] = pd.to_datetime(noise["date"], utc=True, errors="coerce")
     noise = noise.sort_values("date")
- 
+
     cols = [c for c in ["date", "channel_label", "orientation",
                          "text", "views", "reactions_total", "forwards"]
             if c in noise.columns]
     log.info("Выявлено аномальных документов (DBSCAN noise): %d", len(noise))
     return noise[cols].reset_index(drop=True)
- 
- 
+
+
 # ── t-SNE проекция ────────────────────────────────────────────────────────────
- 
 def tsne_projection(
     matrix: sp.csr_matrix,
     params: dict | None = None,
@@ -277,20 +303,20 @@ def tsne_projection(
     """
     Снижает размерность TF-IDF матрицы до 2D методом t-SNE.
     Используется для визуализации кластеров в viz/plotter.py.
- 
+
     Важно: t-SNE работает только с плотными матрицами.
     Для больших корпусов (>5000 документов) предварительно
     применяем TruncatedSVD (LSA) до 50 компонент.
- 
+
     Returns:
         ndarray формы (n_docs, 2)
     """
     if params is None:
         params = TSNE_PARAMS
- 
+
     n_docs = matrix.shape[0]
     log.info("t-SNE проекция: %d документов → 2D...", n_docs)
- 
+
     if n_docs > 5_000:
         log.info("Корпус >5000 — предварительно применяем TruncatedSVD(50)...")
         from sklearn.decomposition import TruncatedSVD
@@ -300,15 +326,14 @@ def tsne_projection(
                  svd.explained_variance_ratio_.sum() * 100)
     else:
         X = matrix.toarray()
- 
+
     tsne   = TSNE(**params)
     coords = tsne.fit_transform(X)
     log.info("t-SNE завершён. KL-дивергенция = %.4f", tsne.kl_divergence_)
     return coords
- 
- 
+
+
 # ── Сборка итогового DataFrame с кластерами ───────────────────────────────────
- 
 def build_cluster_dataframe(
     df: pd.DataFrame,
     kmeans_labels: np.ndarray,
@@ -319,7 +344,7 @@ def build_cluster_dataframe(
     """
     Собирает итоговый DataFrame с результатами кластеризации.
     Сохраняет его в CLUSTERS_CSV.
- 
+
     Колонки результата:
         все исходные + kmeans_cluster, kmeans_label,
         dbscan_label, tsne_x, tsne_y (если есть)
@@ -331,67 +356,61 @@ def build_cluster_dataframe(
         for cl in kmeans_labels
     ]
     df["dbscan_label"] = dbscan_labels
- 
+
     if tsne_coords is not None:
         df["tsne_x"] = tsne_coords[:, 0]
         df["tsne_y"] = tsne_coords[:, 1]
- 
     df.to_csv(CLUSTERS_CSV, index=False, encoding="utf-8")
     log.info("Кластеры сохранены → %s  (%d строк)", CLUSTERS_CSV, len(df))
     return df
- 
- 
+
+
 # ── Основной пайплайн ─────────────────────────────────────────────────────────
- 
 def run_pipeline(
     n_clusters: int = KMEANS_N_CLUSTERS,
     run_tsne: bool = True,
 ) -> pd.DataFrame:
     """
     Полный пайплайн кластеризации:
-      1. Загрузка матрицы и корпуса
-      2. K-Means
-      3. Присвоение меток кластерам
-      4. DBSCAN
-      5. t-SNE (опционально)
-      6. Сборка и сохранение результата
+        1. Загрузка матрицы и корпуса
+        2. K-Means
+        3. Присвоение меток кластерам
+        4. DBSCAN
+        5. t-SNE (опционально)
+        6. Сборка и сохранение результата
     """
-    import json
- 
     matrix, df = _load_matrix_and_corpus()
- 
+
     # Загружаем словарь
     with open(TFIDF_VOCAB, encoding="utf-8") as f:
         vocab = json.load(f)
- 
+
     # K-Means
     km, km_labels = run_kmeans(matrix, n_clusters=n_clusters)
     cl_labels     = label_clusters(km, vocab)
- 
+    save_cluster_labels(km, vocab)
+
     # DBSCAN
     db_labels = run_dbscan(matrix)
- 
+
     # t-SNE
     tsne_coords = None
     if run_tsne:
         tsne_coords = tsne_projection(matrix)
- 
+
     # Сборка
     df_result = build_cluster_dataframe(
         df, km_labels, db_labels, cl_labels, tsne_coords
     )
- 
+
     # Выводим всплески для ивент-анализа
     spikes = spike_documents(df_result, db_labels)
     spikes_path = RESULTS_DIR / "spikes.csv"
     spikes.to_csv(spikes_path, index=False, encoding="utf-8")
     log.info("Аномальные документы сохранены → %s", spikes_path)
- 
     return df_result
- 
- 
-# ── CLI ───────────────────────────────────────────────────────────────────────
- 
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -414,7 +433,7 @@ def main() -> None:
         help="Пропустить t-SNE (экономит время на больших корпусах).",
     )
     args = parser.parse_args()
- 
+
     if args.elbow:
         matrix, _ = _load_matrix_and_corpus()
         elbow_df  = elbow_analysis(matrix)
@@ -422,7 +441,7 @@ def main() -> None:
         print(elbow_df.to_string(index=False))
     else:
         run_pipeline(n_clusters=args.k, run_tsne=not args.no_tsne)
- 
- 
+
+
 if __name__ == "__main__":
     main()

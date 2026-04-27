@@ -34,7 +34,6 @@ from sklearn.metrics import (
     recall_score,
 )
 
-
 from config.settings import (
     LABELED_CSV,
     METRICS_JSON,
@@ -51,7 +50,6 @@ REPORT_PATH = RESULTS_DIR / "metrics_report.txt"
 
 
 # ── Загрузка тестовой выборки ─────────────────────────────────────────────────
-
 def _load_test_set(model_name: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Загружает размеченную выборку, векторизует и возвращает
@@ -103,7 +101,6 @@ def _load_test_set(model_name: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]
 
 
 # ── Оценка одной модели ───────────────────────────────────────────────────────
-
 def evaluate_model(model_name: str = "logreg") -> dict:
     """
     Полная оценка модели на тестовой выборке.
@@ -169,7 +166,6 @@ def evaluate_model(model_name: str = "logreg") -> dict:
 
 
 # ── Сравнительная таблица ─────────────────────────────────────────────────────
-
 def compare_models() -> pd.DataFrame:
     """
     Строит сравнительную таблицу LogReg vs SVM.
@@ -229,7 +225,6 @@ def compare_models() -> pd.DataFrame:
 
 
 # ── Анализ ошибок ─────────────────────────────────────────────────────────────
-
 def error_analysis(model_name: str = "logreg", n: int = 20) -> pd.DataFrame:
     """
     Возвращает n постов, классифицированных неверно с наибольшей уверенностью.
@@ -268,7 +263,6 @@ def error_analysis(model_name: str = "logreg", n: int = 20) -> pd.DataFrame:
 
 
 # ── Анализ уверенности ────────────────────────────────────────────────────────
-
 def confidence_analysis(model_name: str = "logreg") -> pd.DataFrame:
     """
     Распределение уверенности модели по классам и по правильности предсказания.
@@ -332,8 +326,6 @@ def save_report(
     log.info("Отчёт сохранён → %s", REPORT_PATH)
 
 
-# ── CLI ───────────────────────────────────────────────────────────────────────
-
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -368,6 +360,12 @@ def main() -> None:
             all_metrics[name] = evaluate_model(name)
         except Exception as exc:
             log.error("Ошибка при оценке модели %s: %s", name, exc)
+
+    if not all_metrics:
+        raise RuntimeError(
+            "Не удалось оценить ни одну модель. "
+            "Проверьте наличие разметки/моделей и корректность входных данных."
+        )
 
     if len(all_metrics) == 2:
         try:
