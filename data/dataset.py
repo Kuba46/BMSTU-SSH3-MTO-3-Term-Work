@@ -23,10 +23,12 @@ import numpy as np
 
 from config.settings import (
     RAW_CSV,
+    COMMENTS_RAW_CSV,
     LABELED_CSV,
     PROCESSED_CSV,
     CORPUS_START_DATE,
     CORPUS_END_DATE,
+    CHANNELS,
 )
 
 log = logging.getLogger(__name__)
@@ -67,15 +69,64 @@ def load_comments(path: Path | None = None) -> pd.DataFrame:
         frames = [pd.read_csv(file, encoding="utf-8") for file in comment_files]
         df = pd.concat(frames, ignore_index=True)
 
-        if "is_section_header" in df.columns:
-            df = df[df["is_section_header"] != True].copy()
+    if "is_section_header" in df.columns:
+        df = df[df["is_section_header"] != True].copy()
 
     df["date"] = pd.to_datetime(df["date"], utc=True, errors="coerce")
     df["text"] = df["text"].fillna("").astype(str)
+    if "views" in df.columns:
+        df["views"] = pd.to_numeric(df["views"], errors="coerce").fillna(0).astype(int)
+    else:
+        df["views"] = 0
     if path is not None:
         log.info("Загружено %d комментариев из %s", len(df), path)
     else:
         log.info("Загружено %d комментариев из %d файлов", len(df), len(comment_files))
+    return df
+
+
+def _comments_channel_map() -> dict[str, dict[str, str]]:
+    return {
+        ch["username"]: {
+            "channel_label": ch["label"],
+            "orientation": ch["orientation"],
+        }
+        for ch in CHANNELS
+    }
+
+
+def build_comments_raw(output_path: Path = COMMENTS_RAW_CSV) -> pd.DataFrame:
+    """
+    Объединяет все *_comments_raw.csv в единый comments_raw.csv.
+    Также добавляет channel_label и orientation из settings.CHANNELS.
+    """
+    df = load_comments()
+    if df.empty:
+        log.warning("Комментарии не найдены — объединение пропущено.")
+        return df
+
+    channel_map = _comments_channel_map()
+    df["channel_label"] = df["channel_username"].map(
+        lambda u: channel_map.get(u, {}).get("channel_label", "unknown")
+    )
+    df["orientation"] = df["channel_username"].map(
+        lambda u: channel_map.get(u, {}).get("orientation", "unknown")
+    )
+
+    df = df.drop_duplicates(subset=["channel_username", "comment_id"], keep="first")
+    df = df[df["text"].str.strip().ne("")]
+
+    start_ts = pd.Timestamp(CORPUS_START_DATE, tz="UTC")
+    end_ts = pd.Timestamp(CORPUS_END_DATE, tz="UTC").replace(
+        hour=23, minute=59, second=59
+    )
+    df = df[df["date"].between(start_ts, end_ts)]
+
+    if "reactions_total" not in df.columns:
+        df["reactions_total"] = 0
+
+    df.to_csv(output_path, index=False, encoding="utf-8")
+    log.info("Комментарии объединены: %s  (%d строк)", output_path, len(df))
     return df
 
 
@@ -224,11 +275,26 @@ def load_processed(path: Path = PROCESSED_CSV) -> pd.DataFrame:
 
 
 def main() -> None:
+    import argparse
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s  %(levelname)-8s  %(message)s",
         datefmt="%H:%M:%S",
     )
+    parser = argparse.ArgumentParser(
+        description="Сборка и валидация корпуса постов и комментариев."
+    )
+    parser.add_argument(
+        "--comments",
+        action="store_true",
+        help="Объединить комментарии в comments_raw.csv",
+    )
+    args = parser.parse_args()
+
+    if args.comments:
+        build_comments_raw()
+        return
+
     df_raw = load_raw()
     df_valid = validate(df_raw)
     corpus_stats(df_valid)

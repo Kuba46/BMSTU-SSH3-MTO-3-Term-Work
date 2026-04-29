@@ -4,27 +4,28 @@ nlp/lemmatizer.py
 Второй шаг NLP-пайплайна: морфологический анализ и лемматизация.
 
 Что делает:
-  - Токенизирует очищенный текст по пробелам
-  - Для каждого токена определяет лемму через pymorphy2
-  - Фильтрует токены по части речи (ALLOWED_POS из settings)
-  - Удаляет стоп-слова (встроенные NLTK + пользовательский список)
-  - Удаляет слишком короткие токены (< MIN_TOKEN_LEN символов)
-  - Возвращает строку лемматизированных токенов через пробел
+    - Токенизирует очищенный текст по пробелам
+    - Для каждого токена определяет лемму через pymorphy2
+    - Фильтрует токены по части речи (ALLOWED_POS из settings)
+    - Удаляет стоп-слова (встроенные NLTK + пользовательский список)
+    - Удаляет слишком короткие токены (< MIN_TOKEN_LEN символов)
+    - Возвращает строку лемматизированных токенов через пробел
 
 Зависимости:
-  pip install pymorphy2 pymorphy2-dicts-ru nltk
+    pip install pymorphy2 pymorphy2-dicts-ru nltk
 
 Запуск:
-  python -m nlp.lemmatizer          # обрабатывает PROCESSED_CSV
-  python -m nlp.lemmatizer --demo   # примеры в терминале
+    python -m nlp.lemmatizer          # обрабатывает PROCESSED_CSV
+    python -m nlp.lemmatizer --input data/processed/comments_processed.csv --output data/processed/comments_processed.csv
+    python -m nlp.lemmatizer --demo   # примеры в терминале
 """
 
 import argparse
 import logging
+import pandas as pd
+
 from functools import lru_cache
 from pathlib import Path
-
-import pandas as pd
 
 # ── Совместимость pymorphy2 с Python 3.12 ────────────────────────────────────
 # В Python 3.12 удалён pkg_resources (часть setuptools).
@@ -238,7 +239,6 @@ def lemmatize_dataframe(
         token_counts.median(),
         token_counts.max(),
     )
-
     return df
 
 
@@ -259,7 +259,6 @@ def run_pipeline(input_path=PROCESSED_CSV, output_path=PROCESSED_CSV) -> pd.Data
     df_lemma = lemmatize_dataframe(df)
     df_lemma.to_csv(output_path, index=False, encoding="utf-8")
     log.info("Сохранено → %s", output_path)
-
     return df_lemma
 
 
@@ -277,7 +276,6 @@ def _demo() -> None:
         lemmatized = lemmatize_text(text)
         print(f"\n[{i}] ИСХОДНЫЙ:\n  {text!r}")
         print(f"    ЛЕММАТИЗИРОВАННЫЙ:\n  {lemmatized!r}")
-    print("\n─────────────────────────────────────────────────────────────────\n")
 
     # Показываем статистику кэша
     ci = _lemmatize_token.cache_info()
@@ -292,14 +290,17 @@ def main() -> None:
         datefmt="%H:%M:%S",
     )
     parser = argparse.ArgumentParser(description="Лемматизация текста постов.")
-    parser.add_argument("--demo", action="store_true",
-                        help="Показать примеры лемматизации без запуска пайплайна.")
+    parser.add_argument("--demo", action="store_true", help="Показать примеры лемматизации без запуска пайплайна.")
+    parser.add_argument("--input", type=str, default=None, help="Путь к входному CSV (по умолчанию PROCESSED_CSV).")
+    parser.add_argument("--output", type=str, default=None, help="Путь к выходному CSV (по умолчанию PROCESSED_CSV).")
     args = parser.parse_args()
 
     if args.demo:
         _demo()
     else:
-        run_pipeline()
+        input_path = PROCESSED_CSV if args.input is None else Path(args.input)
+        output_path = PROCESSED_CSV if args.output is None else Path(args.output)
+        run_pipeline(input_path=input_path, output_path=output_path)
 
 
 if __name__ == "__main__":

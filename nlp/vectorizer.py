@@ -20,6 +20,7 @@ nlp/vectorizer.py
 import argparse
 import json
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -37,7 +38,6 @@ log = logging.getLogger(__name__)
 
 
 # ── Обучение и сохранение ─────────────────────────────────────────────────────
-
 def fit_vectorizer(
     texts: list[str] | pd.Series,
     params: dict | None = None,
@@ -114,7 +114,6 @@ def load_matrix(
 
 
 # ── Анализ терминов ───────────────────────────────────────────────────────────
-
 def top_terms_global(
     vectorizer: TfidfVectorizer,
     matrix: sp.csr_matrix,
@@ -225,10 +224,11 @@ def tfidf_dynamics(
 
 
 # ── Основной пайплайн ─────────────────────────────────────────────────────────
-
 def run_pipeline(
     input_path=PROCESSED_CSV,
     top_n: int = 30,
+    matrix_path: Path = TFIDF_MATRIX,
+    vocab_path: Path = TFIDF_VOCAB,
 ) -> tuple[TfidfVectorizer, sp.csr_matrix, pd.DataFrame]:
     """
     Загружает PROCESSED_CSV (с колонкой text_lemma) →
@@ -238,7 +238,7 @@ def run_pipeline(
     Returns:
         (vectorizer, matrix, df_corpus)
     """
-    if not input_path.exists():
+    if not Path(input_path).exists():
         raise FileNotFoundError(
             f"Файл не найден: {input_path}\n"
             "Сначала запустите: python -m nlp.lemmatizer"
@@ -268,7 +268,7 @@ def run_pipeline(
     log.info("Корпус для векторизации: %d документов", len(df))
 
     vectorizer, matrix = fit_vectorizer(df["text_lemma"])
-    save_matrix(vectorizer, matrix)
+    save_matrix(vectorizer, matrix, matrix_path=matrix_path, vocab_path=vocab_path)
 
     # Топ-термины глобально
     top_df = top_terms_global(vectorizer, matrix, n=top_n)
@@ -288,8 +288,27 @@ def main() -> None:
         "--top", type=int, default=30,
         help="Вывести топ-N терминов (по умолчанию 30).",
     )
+    parser.add_argument(
+        "--input", type=str, default=None,
+        help="Путь к CSV с лемматизированным корпусом (по умолчанию из настроек).",
+    )
+    parser.add_argument(
+        "--prefix", type=str, default="",
+        help="Префикс для имен файлов TF-IDF/вокаба (например 'comments_').",
+    )
     args = parser.parse_args()
-    run_pipeline(top_n=args.top)
+
+    input_path = Path(args.input) if args.input else PROCESSED_CSV
+
+    # Если задан префикс, сохраняем матрицу/вокаб с этим префиксом в том же каталоге
+    if args.prefix:
+        matrix_path = TFIDF_MATRIX.with_name(f"{args.prefix}{TFIDF_MATRIX.name}")
+        vocab_path = TFIDF_VOCAB.with_name(f"{args.prefix}{TFIDF_VOCAB.name}")
+    else:
+        matrix_path = TFIDF_MATRIX
+        vocab_path = TFIDF_VOCAB
+
+    run_pipeline(input_path=input_path, top_n=args.top, matrix_path=matrix_path, vocab_path=vocab_path)
 
 
 if __name__ == "__main__":

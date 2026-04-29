@@ -20,6 +20,7 @@ analysis/event_analysis.py
 """
 
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -34,18 +35,18 @@ log = logging.getLogger(__name__)
 
 
 # ── Загрузка ──────────────────────────────────────────────────────────────────
-def load_predictions() -> pd.DataFrame:
+def load_predictions(input_path=PREDICTIONS_CSV) -> pd.DataFrame:
     """
     Загружает predictions.csv и приводит типы.
     Обязательные колонки: date, sentiment_pred, channel_label,
     orientation, views, reactions_total.
     """
-    if not PREDICTIONS_CSV.exists():
+    if not input_path.exists():
         raise FileNotFoundError(
-            f"Предсказания не найдены: {PREDICTIONS_CSV}\n"
+            f"Предсказания не найдены: {input_path}\n"
             "Запустите: python -m models.predict"
         )
-    df = pd.read_csv(PREDICTIONS_CSV, encoding="utf-8")
+    df = pd.read_csv(input_path, encoding="utf-8")
     df["date"]          = pd.to_datetime(df["date"], utc=True, errors="coerce")
     df["sentiment_pred"] = pd.to_numeric(df["sentiment_pred"], errors="coerce")
     df["views"]          = pd.to_numeric(df.get("views", 0), errors="coerce").fillna(0)
@@ -333,14 +334,18 @@ def event_impact(
 
 
 # ── Основной пайплайн ─────────────────────────────────────────────────────────
-def run_pipeline(summary_only: bool = False) -> dict[str, pd.DataFrame]:
+def run_pipeline(
+    summary_only: bool = False,
+    input_path=PREDICTIONS_CSV,
+    output_prefix: str = "",
+) -> dict[str, pd.DataFrame]:
     """
     Запускает весь ивент-анализ и сохраняет результаты в RESULTS_DIR.
 
     Returns:
         Словарь {name: DataFrame} для передачи в viz/plotter.py
     """
-    df = load_predictions()
+    df = load_predictions(input_path=input_path)
     results = {
         "activity_weekly":       activity_timeline(df, freq="W"),
         "activity_monthly":      activity_timeline(df, freq="ME"),
@@ -354,7 +359,7 @@ def run_pipeline(summary_only: bool = False) -> dict[str, pd.DataFrame]:
 
     if not summary_only:
         for name, frame in results.items():
-            path = RESULTS_DIR / f"{name}.csv"
+            path = RESULTS_DIR / f"{output_prefix}{name}.csv"
             frame.to_csv(path, index=True, encoding="utf-8")
             log.info("Сохранено → %s", path)
 
@@ -391,8 +396,21 @@ def main() -> None:
         "--summary", action="store_true",
         help="Только сводка в терминал, без сохранения CSV.",
     )
+    parser.add_argument(
+        "--input",
+        type=str,
+        default=None,
+        help="Путь к predictions.csv (по умолчанию results/predictions.csv).",
+    )
+    parser.add_argument(
+        "--prefix",
+        type=str,
+        default="",
+        help="Префикс для файлов результатов (например, comments_).",
+    )
     args = parser.parse_args()
-    run_pipeline(summary_only=args.summary)
+    input_path = PREDICTIONS_CSV if args.input is None else Path(args.input)
+    run_pipeline(summary_only=args.summary, input_path=input_path, output_prefix=args.prefix)
 
 
 if __name__ == "__main__":

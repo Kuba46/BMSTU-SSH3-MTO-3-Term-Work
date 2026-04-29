@@ -17,8 +17,10 @@ viz/plotter.py
     save_all()                   — сохраняет все графики в FIGURES_DIR
 
 Запуск:
-    python -m vizualization.plotter         # генерирует все графики
-    python -m vizualization.plotter --show  # открывает графики в окне (требует GUI)
+    python -m vizualization.plotter                     # генерирует все графики
+    python -m vizualization.plotter --show              # открывает графики в окне (требует GUI)
+    python -m vizualization.plotter --prefix comments_  # графики для комментариев
+    python -m vizualization.plotter --prefix all_       # графики для объединённого корпуса
 """
 
 import argparse
@@ -27,7 +29,6 @@ import json
 from pathlib import Path
 
 import matplotlib
-matplotlib.use("Agg")   # безголовый режим (нет GUI) — всегда работает на сервере
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib.ticker as mticker
@@ -53,6 +54,8 @@ from config.settings import (
 )
 
 log = logging.getLogger(__name__)
+
+_FIGURE_PREFIX = ""
 
 # ── Глобальные настройки стиля ────────────────────────────────────────────────
 plt.rcParams.update({
@@ -113,7 +116,7 @@ def _add_event_markers(
 def _save(fig: plt.Figure, name: str, show: bool = False) -> Path:
     """Сохраняет фигуру в FIGURES_DIR и опционально показывает."""
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    path = FIGURES_DIR / f"{name}.png"
+    path = FIGURES_DIR / f"{_FIGURE_PREFIX}{name}.png"
     bbox_inches = None if fig.get_constrained_layout() else "tight"
     fig.savefig(path, dpi=FIGURE_DPI, bbox_inches=bbox_inches)
     log.info("График сохранён → %s", path)
@@ -621,8 +624,7 @@ def plot_event_impact(
 
 
 # ── Генерация всех графиков ───────────────────────────────────────────────────
-
-def save_all(show: bool = False) -> list[Path]:
+def save_all(show: bool = False, prefix: str = "") -> list[Path]:
     """
     Загружает все необходимые данные из RESULTS_DIR
     и генерирует полный набор графиков.
@@ -634,11 +636,14 @@ def save_all(show: bool = False) -> list[Path]:
     saved = []
 
     def _try_load(name: str) -> pd.DataFrame | None:
-        path = RESULTS_DIR / f"{name}.csv"
+        path = RESULTS_DIR / f"{prefix}{name}.csv"
         if path.exists():
             return pd.read_csv(path)
         log.warning("Файл не найден, пропускаем: %s", path)
         return None
+
+    global _FIGURE_PREFIX
+    _FIGURE_PREFIX = prefix
 
     # 1. Динамика активности
     df_act = _try_load("activity_weekly")
@@ -651,7 +656,16 @@ def save_all(show: bool = False) -> list[Path]:
         saved.append(plot_sentiment_timeline(df_sent, show))
 
     # 3. Взвешенный индекс S(t)
-    df_agg = _try_load("agg_by_period_weekly")
+    df_agg = None
+    agg_path = RESULTS_DIR / f"{prefix}agg_by_period_weekly.csv"
+    alt_agg_path = RESULTS_DIR / f"{prefix}by_period_weekly.csv"
+    if agg_path.exists():
+        df_agg = pd.read_csv(agg_path)
+    elif alt_agg_path.exists():
+        df_agg = pd.read_csv(alt_agg_path)
+    else:
+        log.warning("Файл не найден, пропускаем: %s", agg_path)
+
     if df_agg is not None:
         saved.append(plot_sentiment_index(df_agg, show))
 
@@ -667,19 +681,20 @@ def save_all(show: bool = False) -> list[Path]:
         saved.append(plot_orientation_divergence(df_div, show))
 
     # 6. t-SNE кластеров
-    if CLUSTERS_CSV.exists():
-        df_cl = pd.read_csv(CLUSTERS_CSV)
+    clusters_path = CLUSTERS_CSV if not prefix else RESULTS_DIR / f"{prefix}clusters.csv"
+    if clusters_path.exists():
+        df_cl = pd.read_csv(clusters_path)
         saved.append(plot_cluster_tsne(df_cl, show))
 
         # 7. Топ-слова кластеров (из файла меток)
-        cluster_labels_path = RESULTS_DIR / "cluster_labels.json"
+        cluster_labels_path = RESULTS_DIR / "cluster_labels.json" if not prefix else RESULTS_DIR / f"{prefix}cluster_labels.json"
         if cluster_labels_path.exists():
             with open(cluster_labels_path, encoding="utf-8") as f:
                 cl_labels = {int(k): v for k, v in json.load(f).items()}
             saved.append(plot_top_terms(cl_labels, show=show))
 
-    # 8–9. Матрица ошибок и сравнение моделей
-    if METRICS_JSON.exists():
+    # 8–9. Матрица ошибок и сравнение моделей (только для основного корпуса)
+    if not prefix and METRICS_JSON.exists():
         with open(METRICS_JSON, encoding="utf-8") as f:
             metrics_data = json.load(f)
 
@@ -705,8 +720,6 @@ def save_all(show: bool = False) -> list[Path]:
     return saved
 
 
-# ── CLI ───────────────────────────────────────────────────────────────────────
-
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -718,12 +731,18 @@ def main() -> None:
         "--show", action="store_true",
         help="Открывать графики в окне (требует GUI-окружения).",
     )
+    parser.add_argument(
+        "--prefix",
+        type=str,
+        default="",
+        help="Префикс файлов результатов (например, comments_ или all_).",
+    )
     args = parser.parse_args()
 
     if args.show:
         matplotlib.use("TkAgg")
 
-    paths = save_all(show=args.show)
+    paths = save_all(show=args.show, prefix=args.prefix)
     print(f"\nГотово. Сохранено {len(paths)} графиков в {FIGURES_DIR}")
 
 

@@ -13,14 +13,15 @@
 
 ## Структура проекта
 
-```
+```text
 dolina_analysis/
 ├── data/                   # Сбор и первичная обработка данных
 │   ├── raw/                # Сырые CSV с постами и комментариями
 │   ├── labeled/            # Файл ручной разметки (posts_labeled.csv)
 │   ├── processed/          # Обработанные данные (после NLP)
 │   ├── collector.py        # Асинхронный сборщик через Telethon
-│   └── dataset.py          # Загрузка, валидация, статистика
+│   ├── dataset.py          # Загрузка, валидация, статистика
+│   └── labeler.py          # Ручная разметка тональности постов для обучения моделей
 ├── nlp/                    # Предобработка и векторизация текста
 │   ├── preprocessor.py     # Очистка: URL, эмодзи, хештеги и пр.
 │   ├── lemmatizer.py       # Лемматизация (pymorphy2) + фильтрация стоп‑слов
@@ -34,10 +35,11 @@ dolina_analysis/
 ├── analysis/               # Кластеризация и событийный анализ
 │   ├── cluster.py          # K‑Means и DBSCAN, t‑SNE
 │   ├── event_analysis.py   # Временные ряды тональности и метрики событий
-│   └── aggregator.py       # Агрегация по каналам, периодам, ориентации
+│   ├── aggregator.py       # Агрегация по каналам, периодам, ориентации
+│   └── merge_predictions.py # Объединение предсказаний постов и комментариев
 ├── evaluation/             # Оценка качества моделей
 │   └── metrics.py          # Precision, Recall, F1, сравнение моделей
-├── viz/                    # Визуализация
+├── vizualization/          # Визуализация
 │   └── plotter.py          # Графики: активность, тональность, тепловые карты, t‑SNE
 ├── config/
 │   ├── settings.py         # Общие константы, пути, параметры моделей
@@ -94,9 +96,11 @@ TELEGRAM_SESSION = "session_name"   # Имя файла сессии
 ### 2. Настройка ключевых слов и периода сбора
 
 При необходимости отредактируйте `config/settings.py`:
+
 - `CHANNELS` – список каналов (можно добавить / убрать)
 - `CORPUS_START_DATE`, `CORPUS_END_DATE` – временной интервал
 - `KEYWORDS` – фильтр релевантности
+
 
 ---
 
@@ -121,6 +125,14 @@ python -m data.dataset
 
 Выполняется сборка сводного файла, проверка дубликатов, статистика корпуса.
 
+Если нужны комментарии отдельным файлом, объедините их:
+
+```bash
+python -m data.dataset --comments
+```
+
+Результат – `data/raw/comments_raw.csv`.
+
 ### Шаг 3. Предобработка текста
 
 ```bash
@@ -129,6 +141,13 @@ python -m nlp.lemmatizer
 ```
 
 Очистка, лемматизация, удаление стоп‑слов. Создаётся колонка `text_lemma` в `data/processed/posts_processed.csv`.
+
+Для комментариев используйте те же шаги, но с входным/выходным файлом:
+
+```bash
+python -m nlp.preprocessor --input data/raw/comments_raw.csv --output data/processed/comments_processed.csv
+python -m nlp.lemmatizer --input data/processed/comments_processed.csv --output data/processed/comments_processed.csv
+```
 
 ### Шаг 4. Векторизация
 
@@ -142,7 +161,13 @@ python -m nlp.vectorizer
 
 Перед этим необходимо подготовить файл ручной разметки `data/labeled/posts_labeled.csv`.
 Он должен содержать колонки `channel_username`, `post_id`, `sentiment` (1, 0, -1).
-Создать его можно с помощью скрипта `data/labeler.py` (не включён в репозиторий – интерактивная разметка в терминале).
+Создать его можно с помощью скрипта `data/labeler.py` (интерактивная разметка в терминале).
+
+Запуск разметчика:
+
+```bash
+python -m data.labeler
+```
 
 Обучение моделей:
 
@@ -161,6 +186,13 @@ python -m models.predict
 
 Лучшая модель (по F1) применяется ко всем постам. Результат – `results/predictions.csv`.
 
+Для комментариев:
+
+```bash
+python -m models.predict --input data/processed/comments_processed.csv \
+    --output results/comments_predictions.csv
+```
+
 ### Шаг 7. Агрегация и событийный анализ
 
 ```bash
@@ -170,6 +202,21 @@ python -m analysis.event_analysis
 
 Рассчитываются индексы тональности по каналам, периодам, ориентации.
 Выполняется оконный анализ вокруг ключевых событий.
+
+Для комментариев можно сохранить результаты с отдельным префиксом:
+
+```bash
+python -m analysis.aggregator --input results/comments_predictions.csv --prefix comments_
+python -m analysis.event_analysis --input results/comments_predictions.csv --prefix comments_
+```
+
+Для общего анализа постов + комментариев:
+
+```bash
+python -m analysis.merge_predictions
+python -m analysis.aggregator --input results/predictions_all.csv --prefix all_
+python -m analysis.event_analysis --input results/predictions_all.csv --prefix all_
+```
 
 ### Шаг 8. Кластеризация
 
@@ -182,10 +229,18 @@ K‑Means и DBSCAN, проекция t‑SNE. Сохраняется `results/c
 ### Шаг 9. Визуализация
 
 ```bash
-python -m viz.plotter
+python -m vizualization.plotter
+```
+
+Для комментариев и общего корпуса:
+
+```bash
+python -m vizualization.plotter --prefix comments_
+python -m vizualization.plotter --prefix all_
 ```
 
 Генерируются все графики в папку `results/figures/`:
+
 - динамика публикационной активности
 - динамика тональности и взвешенный индекс S(t)
 - тепловая карта каналов по месяцам
@@ -193,6 +248,7 @@ python -m viz.plotter
 - t‑SNE визуализация кластеров
 - матрицы ошибок и сравнение моделей
 - влияние событий на тональность
+
 
 ### Шаг 10. Запуск всего пайплайна (опционально)
 

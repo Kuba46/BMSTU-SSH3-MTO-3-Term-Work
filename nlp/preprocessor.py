@@ -13,6 +13,7 @@ nlp/preprocessor.py
  
 Запуск:
     python -m nlp.preprocessor          # читает RAW_CSV, пишет в PROCESSED_CSV
+    python -m nlp.preprocessor --input data/raw/comments_raw.csv --output data/processed/comments_processed.csv
     python -m nlp.preprocessor --demo   # показывает примеры очистки в терминале
 """
 
@@ -21,6 +22,7 @@ import re
 import argparse
 import logging
 import unicodedata
+from pathlib import Path
 import pandas as pd
 
 from config.settings import RAW_CSV, PROCESSED_CSV
@@ -154,12 +156,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Очистка текста Telegram-постов.")
     parser.add_argument("--demo", action="store_true",
                         help="Показать примеры очистки без запуска пайплайна.")
+    parser.add_argument("--input", type=str, default=None,
+                        help="Путь к входному CSV (по умолчанию RAW_CSV).")
+    parser.add_argument("--output", type=str, default=None,
+                        help="Путь к выходному CSV (по умолчанию PROCESSED_CSV).")
     args = parser.parse_args()
 
     if args.demo:
         _demo()
     else:
-        run_pipeline()
+        input_path = RAW_CSV if args.input is None else Path(args.input)
+        output_path = PROCESSED_CSV if args.output is None else Path(args.output)
+        run_pipeline(input_path=input_path, output_path=output_path)
 
 
 if __name__ == "__main__":
