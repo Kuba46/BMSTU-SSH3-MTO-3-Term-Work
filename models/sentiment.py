@@ -18,7 +18,6 @@ models/sentiment.py
 
 import argparse
 import logging
-from pathlib import Path
 
 import joblib
 import numpy as np
@@ -38,42 +37,19 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from config.settings import (
     PROCESSED_CSV,
     LABELED_CSV,
-    COMMENTS_PROCESSED_CSV,
-    COMMENTS_LABELED_CSV,
     LOGREG_MODEL,
-    COMMENTS_LOGREG_MODEL,
     TFIDF_PARAMS,
     LOGREG_PARAMS,
     TEST_SIZE,
     RANDOM_STATE,
     SENTIMENT_LABEL_NAMES,
     MODELS_DIR,
-    METRICS_JSON,
-    COMMENTS_METRICS_JSON,
 )
 
 log = logging.getLogger(__name__)
 
 # Путь для сохранения векторизатора, обученного на размеченной выборке
 _VECTORIZER_PATH = MODELS_DIR / "logreg_vectorizer.pkl"
-
-
-def _resolve_artifacts(prefix: str = "") -> tuple[Path, Path, Path, Path, Path]:
-    if prefix == "comments_":
-        return (
-            COMMENTS_PROCESSED_CSV,
-            COMMENTS_LABELED_CSV,
-            COMMENTS_LOGREG_MODEL,
-            MODELS_DIR / "comments_logreg_vectorizer.pkl",
-            COMMENTS_METRICS_JSON,
-        )
-    return (
-        PROCESSED_CSV,
-        LABELED_CSV,
-        LOGREG_MODEL,
-        _VECTORIZER_PATH,
-        METRICS_JSON,
-    )
 
 
 def _build_logreg(params: dict) -> LogisticRegression:
@@ -100,10 +76,7 @@ def _build_logreg(params: dict) -> LogisticRegression:
 
 # ── Загрузка данных ───────────────────────────────────────────────────────────
 
-def load_labeled_corpus(
-    processed_path=PROCESSED_CSV,
-    labeled_path=LABELED_CSV,
-) -> pd.DataFrame:
+def load_labeled_corpus() -> pd.DataFrame:
     """
     Объединяет обработанный корпус (text_lemma) с разметкой тональности.
 
@@ -111,39 +84,27 @@ def load_labeled_corpus(
         DataFrame с колонками: text_lemma, sentiment, channel_username,
         channel_label, orientation, date
     """
-    if not processed_path.exists():
+    if not PROCESSED_CSV.exists():
         raise FileNotFoundError(
-            f"Обработанный корпус не найден: {processed_path}\n"
+            f"Обработанный корпус не найден: {PROCESSED_CSV}\n"
             "Запустите NLP-пайплайн: python -m nlp.preprocessor && "
             "python -m nlp.lemmatizer"
         )
-    if not labeled_path.exists():
+    if not LABELED_CSV.exists():
         raise FileNotFoundError(
-            f"Разметка не найдена: {labeled_path}\n"
-            "Запустите разметчик для соответствующего корпуса."
+            f"Разметка не найдена: {LABELED_CSV}\n"
+            "Запустите: python -m data.labeler"
         )
 
-    df_corpus = pd.read_csv(processed_path, encoding="utf-8")
-    df_labels = pd.read_csv(labeled_path, encoding="utf-8")
-
-    id_candidates = [
-        col for col in ["post_id", "comment_id"]
-        if col in df_corpus.columns and col in df_labels.columns
-    ]
-    if not id_candidates:
-        raise ValueError(
-            "Не найдена общая ID-колонка для объединения. "
-            "Ожидались 'post_id' или 'comment_id'."
-        )
-    id_col = id_candidates[0]
-
-    df_labels = df_labels[["channel_username", id_col, "sentiment"]].copy()
+    df_corpus = pd.read_csv(PROCESSED_CSV, encoding="utf-8")
+    df_labels = pd.read_csv(LABELED_CSV, encoding="utf-8",
+                             usecols=["channel_username", "post_id", "sentiment"])
 
     df_labels["sentiment"] = pd.to_numeric(df_labels["sentiment"], errors="coerce")
     df_labels = df_labels.dropna(subset=["sentiment"])
     df_labels["sentiment"] = df_labels["sentiment"].astype(int)
 
-    df = df_corpus.merge(df_labels, on=["channel_username", id_col], how="inner")
+    df = df_corpus.merge(df_labels, on=["channel_username", "post_id"], how="inner")
 
     if df.empty:
         corpus_channels = set(df_corpus["channel_username"].dropna().astype(str).unique())
@@ -365,42 +326,11 @@ def main() -> None:
         "--features", type=int, default=0, metavar="N",
         help="Вывести топ-N признаков для каждого класса.",
     )
-    parser.add_argument(
-        "--processed", type=str, default=None,
-        help="Путь к processed CSV (если нужно указать нестандартный файл).",
-    )
-    parser.add_argument(
-        "--labeled", type=str, default=None,
-        help="Путь к labeled CSV (если нужно указать нестандартный файл).",
-    )
-    parser.add_argument(
-        "--prefix", type=str, default="",
-        help="Префикс набора артефактов (например, comments_).",
-    )
-    parser.add_argument(
-        "--model-path", type=str, default=None,
-        help="Явный путь для сохранения модели.",
-    )
-    parser.add_argument(
-        "--vectorizer-path", type=str, default=None,
-        help="Явный путь для сохранения векторизатора.",
-    )
-    parser.add_argument(
-        "--metrics-path", type=str, default=None,
-        help="Явный путь для сохранения метрик JSON.",
-    )
     args = parser.parse_args()
 
-    default_processed, default_labeled, default_model, default_vectorizer, default_metrics = _resolve_artifacts(args.prefix)
-    processed_path = default_processed if args.processed is None else Path(args.processed)
-    labeled_path = default_labeled if args.labeled is None else Path(args.labeled)
-    model_path = default_model if args.model_path is None else Path(args.model_path)
-    vectorizer_path = default_vectorizer if args.vectorizer_path is None else Path(args.vectorizer_path)
-    metrics_path = default_metrics if args.metrics_path is None else Path(args.metrics_path)
-
-    df = load_labeled_corpus(processed_path=processed_path, labeled_path=labeled_path)
+    df = load_labeled_corpus()
     vectorizer, model, metrics = train(df)
-    save_model(vectorizer, model, model_path=model_path, vectorizer_path=vectorizer_path)
+    save_model(vectorizer, model)
 
     if args.report:
         print("\nClassification Report (LogisticRegression):")
@@ -416,17 +346,18 @@ def main() -> None:
 
     # Сохраняем метрики в JSON для последующего сравнения с SVM
     import json
+    from config.settings import METRICS_JSON
     existing = {}
-    if metrics_path.exists():
-        with open(metrics_path, encoding="utf-8") as f:
+    if METRICS_JSON.exists():
+        with open(METRICS_JSON, encoding="utf-8") as f:
             existing = json.load(f)
     existing["logreg"] = {
         k: v for k, v in metrics.items()
         if k != "classification_report"   # отчёт — только в лог
     }
-    with open(metrics_path, "w", encoding="utf-8") as f:
+    with open(METRICS_JSON, "w", encoding="utf-8") as f:
         json.dump(existing, f, ensure_ascii=False, indent=2)
-    log.info("Метрики сохранены → %s", metrics_path)
+    log.info("Метрики сохранены → %s", METRICS_JSON)
 
 
 if __name__ == "__main__":

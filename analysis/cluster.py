@@ -21,7 +21,6 @@ analysis/cluster.py
 import argparse
 import logging
 import json
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -33,13 +32,10 @@ from sklearn.preprocessing import normalize
 
 from config.settings import (
     CLUSTERS_CSV,
-    COMMENTS_PREDICTIONS_CSV,
-    COMMENTS_PROCESSED_CSV,
     DBSCAN_EPS,
     DBSCAN_MIN_SAMPLES,
     KMEANS_K_RANGE,
     KMEANS_N_CLUSTERS,
-    PREDICTIONS_ALL_CSV,
     PREDICTIONS_CSV,
     PROCESSED_CSV,
     RANDOM_STATE,
@@ -53,41 +49,7 @@ log = logging.getLogger(__name__)
 
 
 # ── Загрузка артефактов ───────────────────────────────────────────────────────
-def _resolve_paths(prefix: str = "") -> tuple[Path, Path, Path, Path, Path, Path]:
-    if prefix == "comments_":
-        return (
-            TFIDF_MATRIX.with_name("comments_tfidf_matrix.npz"),
-            TFIDF_VOCAB.with_name("comments_tfidf_vocab.json"),
-            COMMENTS_PREDICTIONS_CSV,
-            COMMENTS_PROCESSED_CSV,
-            RESULTS_DIR / "comments_clusters.csv",
-            RESULTS_DIR / "comments_cluster_labels.json",
-        )
-    if prefix == "all_":
-        return (
-            TFIDF_MATRIX.with_name("all_tfidf_matrix.npz"),
-            TFIDF_VOCAB.with_name("all_tfidf_vocab.json"),
-            PREDICTIONS_ALL_CSV,
-            PROCESSED_CSV,
-            RESULTS_DIR / "all_clusters.csv",
-            RESULTS_DIR / "all_cluster_labels.json",
-        )
-    return (
-        TFIDF_MATRIX,
-        TFIDF_VOCAB,
-        PREDICTIONS_CSV,
-        PROCESSED_CSV,
-        CLUSTERS_CSV,
-        RESULTS_DIR / "cluster_labels.json",
-    )
-
-
-def _load_matrix_and_corpus(
-    matrix_path: Path,
-    vocab_path: Path,
-    predictions_path: Path,
-    processed_path: Path,
-) -> tuple[sp.csr_matrix, pd.DataFrame]:
+def _load_matrix_and_corpus() -> tuple[sp.csr_matrix, pd.DataFrame]:
     """
     Загружает TF-IDF-матрицу и корпус.
     Если есть predictions.csv — берёт его (содержит sentiment_pred),
@@ -95,9 +57,9 @@ def _load_matrix_and_corpus(
     """
     from nlp.vectorizer import load_matrix
 
-    matrix, vocab = load_matrix(matrix_path, vocab_path)
+    matrix, vocab = load_matrix(TFIDF_MATRIX, TFIDF_VOCAB)
 
-    source = predictions_path if predictions_path.exists() else processed_path
+    source = PREDICTIONS_CSV if PREDICTIONS_CSV.exists() else PROCESSED_CSV
     if not source.exists():
         raise FileNotFoundError(
             f"Корпус не найден: {source}\n"
@@ -378,7 +340,6 @@ def build_cluster_dataframe(
     dbscan_labels: np.ndarray,
     cluster_labels: dict[int, list[str]],
     tsne_coords: np.ndarray | None = None,
-    output_path: Path = CLUSTERS_CSV,
 ) -> pd.DataFrame:
     """
     Собирает итоговый DataFrame с результатами кластеризации.
@@ -399,8 +360,8 @@ def build_cluster_dataframe(
     if tsne_coords is not None:
         df["tsne_x"] = tsne_coords[:, 0]
         df["tsne_y"] = tsne_coords[:, 1]
-    df.to_csv(output_path, index=False, encoding="utf-8")
-    log.info("Кластеры сохранены → %s  (%d строк)", output_path, len(df))
+    df.to_csv(CLUSTERS_CSV, index=False, encoding="utf-8")
+    log.info("Кластеры сохранены → %s  (%d строк)", CLUSTERS_CSV, len(df))
     return df
 
 
@@ -408,7 +369,6 @@ def build_cluster_dataframe(
 def run_pipeline(
     n_clusters: int = KMEANS_N_CLUSTERS,
     run_tsne: bool = True,
-    prefix: str = "",
 ) -> pd.DataFrame:
     """
     Полный пайплайн кластеризации:
@@ -419,17 +379,16 @@ def run_pipeline(
         5. t-SNE (опционально)
         6. Сборка и сохранение результата
     """
-    matrix_path, vocab_path, predictions_path, processed_path, clusters_path, labels_path = _resolve_paths(prefix)
-    matrix, df = _load_matrix_and_corpus(matrix_path, vocab_path, predictions_path, processed_path)
+    matrix, df = _load_matrix_and_corpus()
 
     # Загружаем словарь
-    with open(vocab_path, encoding="utf-8") as f:
+    with open(TFIDF_VOCAB, encoding="utf-8") as f:
         vocab = json.load(f)
 
     # K-Means
     km, km_labels = run_kmeans(matrix, n_clusters=n_clusters)
     cl_labels     = label_clusters(km, vocab)
-    save_cluster_labels(km, vocab, output_path=labels_path)
+    save_cluster_labels(km, vocab)
 
     # DBSCAN
     db_labels = run_dbscan(matrix)
@@ -441,12 +400,12 @@ def run_pipeline(
 
     # Сборка
     df_result = build_cluster_dataframe(
-        df, km_labels, db_labels, cl_labels, tsne_coords, output_path=clusters_path
+        df, km_labels, db_labels, cl_labels, tsne_coords
     )
 
     # Выводим всплески для ивент-анализа
     spikes = spike_documents(df_result, db_labels)
-    spikes_path = RESULTS_DIR / f"{prefix}spikes.csv"
+    spikes_path = RESULTS_DIR / "spikes.csv"
     spikes.to_csv(spikes_path, index=False, encoding="utf-8")
     log.info("Аномальные документы сохранены → %s", spikes_path)
     return df_result
@@ -473,20 +432,15 @@ def main() -> None:
         "--no-tsne", action="store_true",
         help="Пропустить t-SNE (экономит время на больших корпусах).",
     )
-    parser.add_argument(
-        "--prefix", type=str, default="",
-        help="Префикс набора артефактов (например comments_ или all_).",
-    )
     args = parser.parse_args()
 
     if args.elbow:
-        matrix_path, vocab_path, predictions_path, processed_path, _, _ = _resolve_paths(args.prefix)
-        matrix, _ = _load_matrix_and_corpus(matrix_path, vocab_path, predictions_path, processed_path)
+        matrix, _ = _load_matrix_and_corpus()
         elbow_df  = elbow_analysis(matrix)
         print("\nМетод «локтя»:")
         print(elbow_df.to_string(index=False))
     else:
-        run_pipeline(n_clusters=args.k, run_tsne=not args.no_tsne, prefix=args.prefix)
+        run_pipeline(n_clusters=args.k, run_tsne=not args.no_tsne)
 
 
 if __name__ == "__main__":

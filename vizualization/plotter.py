@@ -29,6 +29,7 @@ import json
 from pathlib import Path
 
 import matplotlib
+matplotlib.use("Agg")   # безголовый режим (нет GUI) — всегда работает на сервере
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib.ticker as mticker
@@ -145,8 +146,8 @@ def plot_activity_timeline(
            width=5, color="#3498db", alpha=0.75, label="Число постов")
     ax.set_xlabel("Дата")
     ax.set_ylabel("Число публикаций")
-    ax.set_title("Рис. 2.1. Динамика публикационной активности в Telegram-каналах\n"
-                 "(март–декабрь 2025 г., недельная агрегация)")
+    ax.set_title("Динамика публикационной активности в Telegram-каналах\n"
+                 "март–декабрь 2025 г., недельная агрегация")
 
     y_max = df2["n_posts"].max() * 1.15
     _add_event_markers(ax, ymax=y_max)
@@ -190,7 +191,7 @@ def plot_sentiment_timeline(
     ax.set_xlabel("Дата")
     ax.set_ylabel("Доля публикаций, %")
     ax.set_ylim(0, 100)
-    ax.set_title("Рис. 2.2. Динамика тональности публикаций в Telegram-каналах\n"
+    ax.set_title("Динамика тональности публикаций в Telegram-каналах\n"
                  "(март–декабрь 2025 г., недельная агрегация)")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
@@ -680,18 +681,18 @@ def save_all(show: bool = False, prefix: str = "") -> list[Path]:
     if df_div is not None:
         saved.append(plot_orientation_divergence(df_div, show))
 
-    # 6. t-SNE кластеров
-    clusters_path = CLUSTERS_CSV if not prefix else RESULTS_DIR / f"{prefix}clusters.csv"
-    if clusters_path.exists():
-        df_cl = pd.read_csv(clusters_path)
-        saved.append(plot_cluster_tsne(df_cl, show))
+    # 6. t-SNE кластеров (только для основного корпуса)
+    if not prefix:
+        if CLUSTERS_CSV.exists():
+            df_cl = pd.read_csv(CLUSTERS_CSV)
+            saved.append(plot_cluster_tsne(df_cl, show))
 
-        # 7. Топ-слова кластеров (из файла меток)
-        cluster_labels_path = RESULTS_DIR / "cluster_labels.json" if not prefix else RESULTS_DIR / f"{prefix}cluster_labels.json"
-        if cluster_labels_path.exists():
-            with open(cluster_labels_path, encoding="utf-8") as f:
-                cl_labels = {int(k): v for k, v in json.load(f).items()}
-            saved.append(plot_top_terms(cl_labels, show=show))
+            # 7. Топ-слова кластеров (из файла меток)
+            cluster_labels_path = RESULTS_DIR / "cluster_labels.json"
+            if cluster_labels_path.exists():
+                with open(cluster_labels_path, encoding="utf-8") as f:
+                    cl_labels = {int(k): v for k, v in json.load(f).items()}
+                saved.append(plot_top_terms(cl_labels, show=show))
 
     # 8–9. Матрица ошибок и сравнение моделей (только для основного корпуса)
     if not prefix and METRICS_JSON.exists():

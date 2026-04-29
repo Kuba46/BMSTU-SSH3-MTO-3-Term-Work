@@ -31,15 +31,10 @@ import pandas as pd
 
 from config.settings import (
     PROCESSED_CSV,
-    COMMENTS_PROCESSED_CSV,
     PREDICTIONS_CSV,
-    COMMENTS_PREDICTIONS_CSV,
     METRICS_JSON,
-    COMMENTS_METRICS_JSON,
     LOGREG_MODEL,
     SVM_MODEL,
-    COMMENTS_LOGREG_MODEL,
-    COMMENTS_SVM_MODEL,
     SENTIMENT_LABEL_NAMES,
     MODELS_DIR,
 )
@@ -49,41 +44,19 @@ log = logging.getLogger(__name__)
 
 # ── Выбор модели ──────────────────────────────────────────────────────────────
 
-def _resolve_artifacts(prefix: str = "") -> tuple[Path, Path, Path, Path, Path, Path, Path]:
-    if prefix == "comments_":
-        return (
-            COMMENTS_PROCESSED_CSV,
-            COMMENTS_PREDICTIONS_CSV,
-            COMMENTS_METRICS_JSON,
-            COMMENTS_LOGREG_MODEL,
-            COMMENTS_SVM_MODEL,
-            MODELS_DIR / "comments_logreg_vectorizer.pkl",
-            MODELS_DIR / "comments_svm_vectorizer.pkl",
-        )
-    return (
-        PROCESSED_CSV,
-        PREDICTIONS_CSV,
-        METRICS_JSON,
-        LOGREG_MODEL,
-        SVM_MODEL,
-        MODELS_DIR / "logreg_vectorizer.pkl",
-        MODELS_DIR / "svm_vectorizer.pkl",
-    )
-
-
-def _select_best_model(metrics_path: Path) -> str:
+def _select_best_model() -> str:
     """
     Читает METRICS_JSON и возвращает имя лучшей модели ('logreg' или 'svm').
     При отсутствии файла — возвращает 'logreg' по умолчанию.
     """
-    if not metrics_path.exists():
+    if not METRICS_JSON.exists():
         log.warning(
             "Файл метрик не найден (%s). Используется LogReg по умолчанию.",
-            metrics_path,
+            METRICS_JSON,
         )
         return "logreg"
 
-    with open(metrics_path, encoding="utf-8") as f:
+    with open(METRICS_JSON, encoding="utf-8") as f:
         data = json.load(f)
 
     lr_f1  = data.get("logreg", {}).get("f1_macro", 0.0)
@@ -101,13 +74,7 @@ def _select_best_model(metrics_path: Path) -> str:
         return "logreg"
 
 
-def _load_model(
-    model_name: str,
-    logreg_model_path: Path,
-    svm_model_path: Path,
-    logreg_vectorizer_path: Path,
-    svm_vectorizer_path: Path,
-):
+def _load_model(model_name: str):
     """
     Загружает векторизатор и модель по имени.
 
@@ -116,23 +83,15 @@ def _load_model(
     """
     if model_name == "svm":
         from models.svm_clf import load_model
-        return load_model(model_path=svm_model_path, vectorizer_path=svm_vectorizer_path)
+        return load_model()
     else:
         from models.sentiment import load_model
-        return load_model(model_path=logreg_model_path, vectorizer_path=logreg_vectorizer_path)
+        return load_model()
 
 
 # ── Предсказание ──────────────────────────────────────────────────────────────
 
-def predict(
-    df: pd.DataFrame,
-    model_name: str | None = None,
-    metrics_path: Path = METRICS_JSON,
-    logreg_model_path: Path = LOGREG_MODEL,
-    svm_model_path: Path = SVM_MODEL,
-    logreg_vectorizer_path: Path = MODELS_DIR / "logreg_vectorizer.pkl",
-    svm_vectorizer_path: Path = MODELS_DIR / "svm_vectorizer.pkl",
-) -> pd.DataFrame:
+def predict(df: pd.DataFrame, model_name: str | None = None) -> pd.DataFrame:
     """
     Размечает тональность всего DataFrame.
 
@@ -150,15 +109,9 @@ def predict(
           sentiment_confidence— уверенность модели (max proba)
     """
     if model_name is None:
-        model_name = _select_best_model(metrics_path)
+        model_name = _select_best_model()
 
-    vectorizer, model = _load_model(
-        model_name,
-        logreg_model_path,
-        svm_model_path,
-        logreg_vectorizer_path,
-        svm_vectorizer_path,
-    )
+    vectorizer, model = _load_model(model_name)
 
     df = df.copy()
     df["text_lemma"] = df["text_lemma"].fillna("").astype(str)
@@ -289,11 +242,6 @@ def run_pipeline(
     model_name: str | None = None,
     input_path=PROCESSED_CSV,
     output_path=PREDICTIONS_CSV,
-    metrics_path: Path = METRICS_JSON,
-    logreg_model_path: Path = LOGREG_MODEL,
-    svm_model_path: Path = SVM_MODEL,
-    logreg_vectorizer_path: Path = MODELS_DIR / "logreg_vectorizer.pkl",
-    svm_vectorizer_path: Path = MODELS_DIR / "svm_vectorizer.pkl",
 ) -> pd.DataFrame:
     """
     Загружает обработанный корпус → размечает → сохраняет PREDICTIONS_CSV.
@@ -308,15 +256,7 @@ def run_pipeline(
     df["text_lemma"] = df["text_lemma"].fillna("").astype(str)
     log.info("Загружено документов для разметки: %d", len(df))
 
-    df_pred = predict(
-        df,
-        model_name=model_name,
-        metrics_path=metrics_path,
-        logreg_model_path=logreg_model_path,
-        svm_model_path=svm_model_path,
-        logreg_vectorizer_path=logreg_vectorizer_path,
-        svm_vectorizer_path=svm_vectorizer_path,
-    )
+    df_pred = predict(df, model_name=model_name)
     df_pred.to_csv(output_path, index=False, encoding="utf-8")
     log.info("Предсказания сохранены → %s  (%d строк)", output_path, len(df_pred))
 
@@ -358,26 +298,10 @@ def main() -> None:
         default=None,
         help="Путь для сохранения предсказаний (по умолчанию PREDICTIONS_CSV).",
     )
-    parser.add_argument(
-        "--prefix",
-        type=str,
-        default="",
-        help="Префикс набора артефактов (например comments_).",
-    )
     args = parser.parse_args()
-    default_input, default_output, default_metrics, default_logreg_model, default_svm_model, default_logreg_vectorizer, default_svm_vectorizer = _resolve_artifacts(args.prefix)
-    input_path = default_input if args.input is None else Path(args.input)
-    output_path = default_output if args.output is None else Path(args.output)
-    run_pipeline(
-        model_name=args.model,
-        input_path=input_path,
-        output_path=output_path,
-        metrics_path=default_metrics,
-        logreg_model_path=default_logreg_model,
-        svm_model_path=default_svm_model,
-        logreg_vectorizer_path=default_logreg_vectorizer,
-        svm_vectorizer_path=default_svm_vectorizer,
-    )
+    input_path = PROCESSED_CSV if args.input is None else Path(args.input)
+    output_path = PREDICTIONS_CSV if args.output is None else Path(args.output)
+    run_pipeline(model_name=args.model, input_path=input_path, output_path=output_path)
 
 
 if __name__ == "__main__":
