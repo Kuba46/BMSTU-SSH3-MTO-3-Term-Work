@@ -30,17 +30,17 @@ from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test
 from sklearn.svm import LinearSVC
 
 from config.settings import (
-    COMMENTS_LABELED_CSV,
-    COMMENTS_METRICS_JSON,
     COMMENTS_PROCESSED_CSV,
-    COMMENTS_SVM_MODEL,
     LABELED_CSV,
     METRICS_JSON,
+    COMMENTS_METRICS_JSON,
+    SVM_MODEL,
     MODELS_DIR,
     PROCESSED_CSV,
     RANDOM_STATE,
     SENTIMENT_LABEL_NAMES,
     SVM_MODEL,
+    COMMENTS_SVM_MODEL,
     SVM_PARAMS,
     TEST_SIZE,
     TFIDF_PARAMS,
@@ -55,7 +55,6 @@ def _resolve_artifacts(prefix: str = "") -> tuple[Path, Path, Path, Path, Path]:
     if prefix == "comments_":
         return (
             COMMENTS_PROCESSED_CSV,
-            COMMENTS_LABELED_CSV,
             COMMENTS_SVM_MODEL,
             MODELS_DIR / "comments_svm_vectorizer.pkl",
             COMMENTS_METRICS_JSON,

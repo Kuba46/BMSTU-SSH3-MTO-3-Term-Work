@@ -20,9 +20,8 @@ dolina_analysis/
 │   ├── labeled/            # Файл ручной разметки (posts_labeled.csv)
 │   ├── processed/          # Обработанные данные (после NLP)
 │   ├── collector.py        # Асинхронный сборщик через Telethon
-│   ├── comment_labeler.py        # Ручная разметка тональности комментариев для обучения моделей Telethon
 │   ├── dataset.py          # Загрузка, валидация, статистика
-│   └── posts_labeler.py          # Ручная разметка тональности постов для обучения моделей
+│   └── labeler.py          # Ручная разметка тональности постов для обучения моделей
 ├── nlp/                    # Предобработка и векторизация текста
 │   ├── preprocessor.py     # Очистка: URL, эмодзи, хештеги и пр.
 │   ├── lemmatizer.py       # Лемматизация (pymorphy2) + фильтрация стоп‑слов
@@ -68,12 +67,6 @@ dolina_analysis/
 
 ```bash
 pip install -r requirements.txt
-```
-
-Если `pymorphy2-dicts-ru` не устанавливается автоматически, выполните:
-
-```bash
-pip install pymorphy2-dicts-ru
 ```
 
 ---

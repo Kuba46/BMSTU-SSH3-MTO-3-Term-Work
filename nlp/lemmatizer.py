@@ -12,7 +12,7 @@ nlp/lemmatizer.py
     - Возвращает строку лемматизированных токенов через пробел
 
 Зависимости:
-    pip install pymorphy2 pymorphy2-dicts-ru nltk
+    pip install pymorphy3
 
 Запуск:
     python -m nlp.lemmatizer          # обрабатывает PROCESSED_CSV

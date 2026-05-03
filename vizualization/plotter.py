@@ -237,7 +237,7 @@ def plot_sentiment_index(
     ax.set_ylim(-y_abs, y_abs)
     ax.set_xlabel("Дата")
     ax.set_ylabel("Взвешенный индекс тональности S(t)")
-    ax.set_title("Рис. 2.3. Взвешенный индекс тональности S(t)\n"
+    ax.set_title("Взвешенный индекс тональности S(t)\n"
                  "(с учётом охвата публикаций; диапазон [-1, +1])")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
@@ -275,7 +275,7 @@ def plot_channel_heatmap(
         annot_kws={"fontsize": 8},
         cbar_kws={"label": "Индекс тональности S"},
     )
-    ax.set_title("Рис. 2.4. Тепловая карта индекса тональности\n"
+    ax.set_title("Тепловая карта индекса тональности\n"
                  "по каналам и месяцам (март–декабрь 2025 г.)")
     ax.set_xlabel("Период (месяц)")
     ax.set_ylabel("Telegram-канал")
@@ -310,7 +310,7 @@ def plot_orientation_divergence(
              linewidth=1.8, linestyle="--", label="Общественные каналы")
     ax1.axhline(0, color="#bdc3c7", linewidth=0.8)
     ax1.set_ylabel("Индекс тональности S(t)")
-    ax1.set_title("Рис. 2.5. Сравнение тональности государственных\n"
+    ax1.set_title("Сравнение тональности государственных\n"
                   "и общественных Telegram-каналов")
     ax1.legend()
     ax1.set_ylim(-1.0, 1.0)
@@ -376,7 +376,7 @@ def plot_cluster_tsne(
             label=f"К{cl}: {lbl}",
         )
 
-    ax.set_title("Рис. 2.6. t-SNE проекция тематических кластеров\n"
+    ax.set_title("t-SNE проекция тематических кластеров\n"
                  "(K-Means, TF-IDF пространство)")
     ax.set_xlabel("t-SNE dim 1")
     ax.set_ylabel("t-SNE dim 2")
@@ -445,7 +445,7 @@ def plot_top_terms(
     for i in range(n_clusters, len(axes)):
         axes[i].set_visible(False)
 
-    fig.suptitle("Рис. 2.7. Топ-слова тематических кластеров K-Means",
+    fig.suptitle("Топ-слова тематических кластеров K-Means",
                  fontsize=13, fontweight="bold", y=1.01)
     fig.tight_layout()
 
@@ -503,7 +503,7 @@ def plot_confusion_matrix(
     ax.set_xlabel("Предсказанная метка")
     ax.set_ylabel("Истинная метка")
     model_display = "LogisticRegression" if model_name == "logreg" else "SVM (LinearSVC)"
-    ax.set_title(f"Рис. 2.8. Матрица ошибок классификатора\n({model_display}, доли по строкам)")
+    ax.set_title(f"Матрица ошибок классификатора\n({model_display}, доли по строкам)")
     fig.tight_layout()
 
     return _save(fig, f"fig_2_8_confusion_matrix_{model_name}", show)
@@ -554,7 +554,7 @@ def plot_model_comparison(
     ax.set_xticklabels(sub[metric_col].values, rotation=15, ha="right")
     ax.set_ylim(0, max(1.1, float(np.nanmax([lr_vals, svm_vals])) * 1.15))
     ax.set_ylabel("Значение метрики")
-    ax.set_title("Рис. 2.9. Сравнение качества классификаторов тональности\n"
+    ax.set_title("Сравнение качества классификаторов тональности\n"
                  "(LogisticRegression vs SVM, тестовая выборка)")
     ax.legend()
     ax.bar_label(bars1, fmt="%.3f", fontsize=8, padding=2)
@@ -614,7 +614,7 @@ def plot_event_impact(
     ax.axvline(0, color="#7f8c8d", linewidth=0.8)
     ax.bar_label(bars, fmt="%+.3f", fontsize=9, padding=3)
     ax.set_xlabel("Δ индекса тональности (после − до события)")
-    ax.set_title("Рис. 2.10. Изменение тональности дискуссии\n"
+    ax.set_title("Изменение тональности дискуссии\n"
                  "в ±7 дней вокруг ключевых событий дела Долиной")
     ax.invert_yaxis()
     max_abs = float(np.nanmax(np.abs(df2["delta"])))
