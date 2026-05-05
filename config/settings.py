@@ -57,77 +57,126 @@ except ImportError:
 #   orientation— "public" (общественный) | "state" (гос./провластный)
 #   has_comments — True, если у канала открыты комментарии
 #   has_reactions— True, если у канала включены реакции
+# Типы реакций (reaction_type):
+#   "emoji_full"  — полный набор эмодзи-реакций (Telegram Premium + стандартные)
+#   "like_dislike"— только 👍 и 👎 (ограниченный режим, напр. РИА Новости)
+#   "none"        — реакции отключены (напр. ТОПОР — только комментарии)
+#
+# Тип комментариев (comment_type):
+#   "open"        — комментарии открыты для всех подписчиков
+#   "none"        — комментарии отключены
+#
+# interaction_note — текстовое описание ограничений канала для документации
 
 CHANNELS = [
     {
-        "username":     "shot_shot",
-        "label":        "SHOT",
-        "orientation":  "public",
-        "has_comments": True,
-        "has_reactions": True,
+        "username":       "shot_shot",
+        "label":          "SHOT",
+        "orientation":    "public",
+        "has_comments":   True,
+        "comment_type":   "open",
+        "has_reactions":  True,
+        "reaction_type":  "emoji_full",
+        "interaction_note": "Полный набор реакций; комментарии открыты. "
+                            "На момент периода исследования (март–дек. 2025) "
+                            "комментарии были временно закрыты под рядом постов.",
     },
     {
-        "username":     "AlexCarrier",
-        "label":        "Александр Картавых",
-        "orientation":  "public",
-        "has_comments": True,
-        "has_reactions": True,
+        "username":       "AlexCarrier",
+        "label":          "Александр Картавых",
+        "orientation":    "public",
+        "has_comments":   True,
+        "comment_type":   "open",
+        "has_reactions":  True,
+        "reaction_type":  "emoji_full",
+        "interaction_note": "Полный набор реакций; комментарии открыты.",
     },
     {
-        "username":     "topor",
-        "label":        "ТОПОР — Горячие новости",
-        "orientation":  "public",
-        "has_comments": True,
-        "has_reactions": False,
+        "username":       "topor",
+        "label":          "ТОПОР — Горячие новости",
+        "orientation":    "public",
+        "has_comments":   True,
+        "comment_type":   "open",
+        "has_reactions":  False,
+        "reaction_type":  "none",
+        "interaction_note": "Реакции полностью отключены. "
+                            "Единственный канал выборки с комментариями "
+                            "но без реакций — анализ вовлечённости ведётся "
+                            "исключительно на основе текстов комментариев.",
     },
     {
-        "username":     "Cbpub",
-        "label":        "КБ",
-        "orientation":  "public",
-        "has_comments": False,
-        "has_reactions": True,
+        "username":       "Cbpub",
+        "label":          "КБ",
+        "orientation":    "public",
+        "has_comments":   False,
+        "comment_type":   "none",
+        "has_reactions":  True,
+        "reaction_type":  "emoji_full",
+        "interaction_note": "Комментарии закрыты; доступны только реакции.",
     },
     {
-        "username":     "toporlive",
-        "label":        "Топор Live",
-        "orientation":  "public",
-        "has_comments": False,
-        "has_reactions": True,
+        "username":       "toporlive",
+        "label":          "Топор Live",
+        "orientation":    "public",
+        "has_comments":   False,
+        "comment_type":   "none",
+        "has_reactions":  True,
+        "reaction_type":  "emoji_full",
+        "interaction_note": "Комментарии закрыты; доступны только реакции.",
     },
     {
-        "username":     "rian_ru",
-        "label":        "РИА Новости",
-        "orientation":  "state",
-        "has_comments": False,
-        "has_reactions": True,
+        "username":       "rian_ru",
+        "label":          "РИА Новости",
+        "orientation":    "state",
+        "has_comments":   False,
+        "comment_type":   "none",
+        "has_reactions":  True,
+        "reaction_type":  "like_dislike",
+        "interaction_note": "Ограниченный набор реакций: только 👍 (лайк) "
+                            "и 👎 (дизлайк). Это методологически значимо: "
+                            "бинарная шкала одобрения/неодобрения даёт "
+                            "прямую метрику тональности аудитории, "
+                            "не требующую классификации эмодзи.",
     },
     {
-        "username":     "rbc_news",
-        "label":        "РБК",
-        "orientation":  "state",
-        "has_comments": False,
-        "has_reactions": True,
+        "username":       "rbc_news",
+        "label":          "РБК",
+        "orientation":    "state",
+        "has_comments":   False,
+        "comment_type":   "none",
+        "has_reactions":  True,
+        "reaction_type":  "emoji_full",
+        "interaction_note": "Комментарии закрыты; доступны только реакции.",
     },
     {
-        "username":     "rt_russian",
-        "label":        "RT на русском",
-        "orientation":  "state",
-        "has_comments": False,
-        "has_reactions": True,
+        "username":       "rt_russian",
+        "label":          "RT на русском",
+        "orientation":    "state",
+        "has_comments":   False,
+        "comment_type":   "none",
+        "has_reactions":  True,
+        "reaction_type":  "emoji_full",
+        "interaction_note": "Комментарии закрыты; доступны только реакции.",
     },
     {
-        "username":     "uranews",
-        "label":        "URA.RU",
-        "orientation":  "state",
-        "has_comments": False,
-        "has_reactions": True,
+        "username":       "uranews",
+        "label":          "URA.RU",
+        "orientation":    "state",
+        "has_comments":   False,
+        "comment_type":   "none",
+        "has_reactions":  True,
+        "reaction_type":  "emoji_full",
+        "interaction_note": "Комментарии закрыты; доступны только реакции.",
     },
     {
-        "username":     "davankov",
-        "label":        "ДАВАНКОВ // Вице-спикер Госдумы",
-        "orientation":  "state",
-        "has_comments": True,
-        "has_reactions": True,
+        "username":       "davankov",
+        "label":          "ДАВАНКОВ // Вице-спикер Госдумы",
+        "orientation":    "state",
+        "has_comments":   True,
+        "comment_type":   "open",
+        "has_reactions":  True,
+        "reaction_type":  "emoji_full",
+        "interaction_note": "Полный набор реакций; комментарии открыты.",
     },
 ]
 
@@ -314,3 +363,79 @@ PREDICTIONS_ALL_CSV = RESULTS_DIR / "predictions_all.csv"
 CLUSTERS_CSV   = RESULTS_DIR   / "clusters.csv"
 METRICS_JSON   = RESULTS_DIR   / "metrics.json"
 COMMENTS_METRICS_JSON = RESULTS_DIR / "comments_metrics.json"
+
+# Быстрый доступ: список username-ов
+CHANNEL_USERNAMES = [ch["username"] for ch in CHANNELS]
+
+# Удобные вспомогательные срезы по типу взаимодействия
+CHANNELS_WITH_COMMENTS  = [ch for ch in CHANNELS if ch["has_comments"]]
+CHANNELS_WITH_REACTIONS = [ch for ch in CHANNELS if ch["has_reactions"]]
+CHANNELS_LIKE_DISLIKE   = [ch for ch in CHANNELS if ch.get("reaction_type") == "like_dislike"]
+CHANNELS_EMOJI_FULL     = [ch for ch in CHANNELS if ch.get("reaction_type") == "emoji_full"]
+
+# ── Классификация эмодзи-реакций ──────────────────────────────────────────────
+#
+# Словарь сопоставляет конкретные эмодзи с семантическими категориями.
+# Используется в analysis/emoji_analyzer.py для подсчёта
+# доли позитивных/негативных/нейтральных реакций под постом.
+#
+# Источник классификации: анализ наиболее распространённых реакций
+# в новостных Telegram-каналах России (Brand Analytics, 2025).
+
+EMOJI_SENTIMENT: dict[str, str] = {
+    # ── Позитивные ────────────────────────────────────────────────────────────
+    "👍": "positive",   # лайк — базовое одобрение
+    "❤️": "positive",   # сердце — одобрение, симпатия
+    "🔥": "positive",   # огонь — восторг, «горячая» новость
+    "🎉": "positive",   # конфетти — радость, праздник
+    "👏": "positive",   # аплодисменты — одобрение действия
+    "😍": "positive",   # влюблённые глаза — восхищение
+    "🥰": "positive",   # улыбка с сердечками — теплота
+    "💯": "positive",   # сто баллов — полное согласие/одобрение
+    "🤩": "positive",   # звёздные глаза — восторг
+    "😊": "positive",   # улыбка — мягкое одобрение
+    "✅": "positive",   # галочка — согласие/подтверждение
+    "🙏": "positive",   # молитва/благодарность — одобрение решения
+    "💪": "positive",   # бицепс — сила, поддержка
+    "⚡": "positive",   # молния — «мощно», экспрессия одобрения
+    "🕊️": "positive",  # голубь — справедливость, мир (в контексте суда)
+
+    # ── Негативные ────────────────────────────────────────────────────────────
+    "👎": "negative",   # дизлайк — базовое неодобрение
+    "😡": "negative",   # злость — возмущение
+    "🤬": "negative",   # ругань — сильное возмущение
+    "💔": "negative",   # разбитое сердце — разочарование
+    "😢": "negative",   # слёзы — грусть, сочувствие жертве
+    "😭": "negative",   # рыдание — сильная грусть/возмущение
+    "🤦": "negative",   # фейспалм — разочарование, «как так можно»
+    "🤮": "negative",   # тошнота — отвращение
+    "😤": "negative",   # пыхтение — раздражение
+    "💩": "negative",   # куча — пренебрежение
+    "🚫": "negative",   # запрет — отрицание
+    "❌": "negative",   # крест — несогласие
+    "🙈": "negative",   # обезьяна, закрывающая глаза — нежелание видеть
+    "🤡": "negative",   # клоун — насмешка, унижение (в контексте суда)
+
+
+    # ── Нейтральные / информационные ─────────────────────────────────────────
+    "👀": "neutral",    # глаза — «смотрю», интерес без оценки
+    "🤔": "neutral",    # раздумье — сомнение, неоднозначность
+    "😮": "neutral",    # удивление — нейтральная реакция на новость
+    "😲": "neutral",    # изумление — нейтральное удивление
+    "🤯": "neutral",    # взрыв мозга — шок (без чёткой валентности)
+}
+
+# Специальный случай: РИА Новости — только лайк/дизлайк
+# При анализе этого канала используется упрощённая схема:
+#   👍 → positive, 👎 → negative (других реакций нет)
+EMOJI_LIKE_DISLIKE: dict[str, str] = {
+    "👍": "positive",
+    "👎": "negative",
+}
+
+# Обратный словарь: категория → список эмодзи
+EMOJI_BY_SENTIMENT: dict[str, list[str]] = {}
+for _emoji, _sent in EMOJI_SENTIMENT.items():
+    EMOJI_BY_SENTIMENT.setdefault(_sent, []).append(_emoji)
+
+# ── Временные рамки корпуса ───────────────────────────────────────────────────

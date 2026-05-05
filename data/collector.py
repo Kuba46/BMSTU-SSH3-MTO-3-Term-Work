@@ -486,7 +486,28 @@ async def run_collection(target_usernames: list[str] | None = None) -> None:
 
     # Сводный файл
     if all_posts:
-        df_all = pd.DataFrame(all_posts)
+        df_new = pd.DataFrame(all_posts)
+
+        if RAW_CSV.exists():
+            df_existing = pd.read_csv(RAW_CSV, encoding="utf-8")
+        else:
+            df_existing = pd.DataFrame()
+
+        updated_channels = {ch["username"] for ch in channels_to_collect}
+        if not df_existing.empty and "channel_username" in df_existing.columns:
+            df_existing = df_existing[
+                ~df_existing["channel_username"].isin(updated_channels)
+            ]
+
+        df_all = pd.concat([df_existing, df_new], ignore_index=True)
+        df_all = df_all.drop_duplicates(
+            subset=["channel_username", "post_id"], keep="last"
+        )
+
+        if "date" in df_all.columns:
+            df_all["date"] = pd.to_datetime(df_all["date"], errors="coerce")
+            df_all = df_all.sort_values("date")
+
         df_all.to_csv(RAW_CSV, index=False, encoding="utf-8")
 
         stats = (

@@ -27,6 +27,7 @@ import pandas as pd
 import scipy.sparse as sp
 
 from sklearn.cluster import KMeans, DBSCAN
+from sklearn.decomposition import TruncatedSVD
 from sklearn.manifold import TSNE
 from sklearn.preprocessing import normalize
 
@@ -90,7 +91,7 @@ def elbow_analysis(
  
     Returns:
         DataFrame с колонками ['k', 'inertia']
-        (используется в viz/plotter.py для построения графика «локтя»)
+        (используется в vizualization/plotter_posts.py для построения графика «локтя»)
     """
     log.info("Метод «локтя»: проверяем k = %s...", list(k_range))
 
@@ -175,13 +176,13 @@ def label_clusters(
     """
     # Инвертируем словарь: {col_idx: term}
     idx_to_term = {v: k for k, v in vocab.items()}
-    n_terms     = len(vocab)
-    result      = {}
+    n_terms = len(vocab)
+    result = {}
 
     for cl_id, centroid in enumerate(km.cluster_centers_):
         # Берём только те индексы, что реально есть в словаре
         valid_idx = [i for i in range(min(len(centroid), n_terms))]
-        top_idx   = np.argsort(centroid[valid_idx])[::-1][:n_top]
+        top_idx = np.argsort(centroid[valid_idx])[::-1][:n_top]
         result[cl_id] = [idx_to_term.get(i, f"term_{i}") for i in top_idx]
 
     log.info("Метки кластеров (топ-%d слов):", n_top)
@@ -262,7 +263,7 @@ def run_dbscan(
     labels = dbscan.fit_predict(X_dense)
 
     n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-    n_noise    = (labels == -1).sum()
+    n_noise = (labels == -1).sum()
     log.info(
         "DBSCAN завершён: кластеров=%d, шумовых документов=%d (%.1f%%)",
         n_clusters, n_noise, n_noise / len(labels) * 100,
@@ -288,9 +289,7 @@ def spike_documents(
     noise["date"] = pd.to_datetime(noise["date"], utc=True, errors="coerce")
     noise = noise.sort_values("date")
 
-    cols = [c for c in ["date", "channel_label", "orientation",
-                         "text", "views", "reactions_total", "forwards"]
-            if c in noise.columns]
+    cols = [c for c in ["date", "channel_label", "orientation", "text", "views", "reactions_total", "forwards"] if c in noise.columns]
     log.info("Выявлено аномальных документов (DBSCAN noise): %d", len(noise))
     return noise[cols].reset_index(drop=True)
 
@@ -302,7 +301,7 @@ def tsne_projection(
 ) -> np.ndarray:
     """
     Снижает размерность TF-IDF матрицы до 2D методом t-SNE.
-    Используется для визуализации кластеров в viz/plotter.py.
+    Используется для визуализации кластеров в vizualization/plotter_posts.py.
 
     Важно: t-SNE работает только с плотными матрицами.
     Для больших корпусов (>5000 документов) предварительно
@@ -319,15 +318,13 @@ def tsne_projection(
 
     if n_docs > 5_000:
         log.info("Корпус >5000 — предварительно применяем TruncatedSVD(50)...")
-        from sklearn.decomposition import TruncatedSVD
         svd = TruncatedSVD(n_components=50, random_state=RANDOM_STATE)
         X = svd.fit_transform(matrix)
-        log.info("SVD: объяснённая дисперсия = %.2f%%",
-                 svd.explained_variance_ratio_.sum() * 100)
+        log.info("SVD: объяснённая дисперсия = %.2f%%", svd.explained_variance_ratio_.sum() * 100)
     else:
         X = matrix.toarray()
 
-    tsne   = TSNE(**params)
+    tsne = TSNE(**params)
     coords = tsne.fit_transform(X)
     log.info("t-SNE завершён. KL-дивергенция = %.4f", tsne.kl_divergence_)
     return coords
@@ -380,8 +377,6 @@ def run_pipeline(
         6. Сборка и сохранение результата
     """
     matrix, df = _load_matrix_and_corpus()
-
-    # Загружаем словарь
     with open(TFIDF_VOCAB, encoding="utf-8") as f:
         vocab = json.load(f)
 
@@ -445,3 +440,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    

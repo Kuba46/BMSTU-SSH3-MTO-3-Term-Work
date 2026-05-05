@@ -60,6 +60,61 @@ def _clear() -> None:
     os.system("cls" if os.name == "nt" else "clear")
 
 
+# Символы-подсказки для отображения эмодзи-категорий
+_CAT_ICONS = {"positive": "🟢", "negative": "🔴", "neutral": "🟡", "unknown": "⚪"}
+
+
+def _emoji_hint(row: pd.Series) -> str:
+    """
+    Формирует строку-подсказку на основе эмодзи-реакций под постом.
+    Помогает оператору быстрее определить тональность.
+
+    Логика: смотрим на reactions_top и классифицируем каждое эмодзи
+    по словарю EMOJI_SENTIMENT. Показываем доминирующую категорию.
+    """
+    try:
+        from config.settings import EMOJI_SENTIMENT, EMOJI_LIKE_DISLIKE
+        rtype = None
+        for ch in __import__("config.settings", fromlist=["CHANNELS"]).CHANNELS:
+            if ch["username"] == row.get("channel_username", ""):
+                rtype = ch.get("reaction_type", "none")
+                break
+
+        if rtype == "none":
+            return "  💬 Реакций нет (только комментарии)"
+
+        emoji_dict = EMOJI_LIKE_DISLIKE if rtype == "like_dislike" else EMOJI_SENTIMENT
+        reactions_top = str(row.get("reactions_top", "")).strip()
+
+        if not reactions_top:
+            return "  ⚪ Реакции отсутствуют"
+
+        counts = {"positive": 0, "negative": 0, "neutral": 0, "unknown": 0}
+        emojis = reactions_top.split()
+        for em in emojis:
+            cat = emoji_dict.get(em, "unknown")
+            counts[cat] += 1
+
+        # Доминирующая категория
+        dominant = max(
+            ["positive", "negative", "neutral"],
+            key=lambda c: counts[c]
+        )
+        icon = _CAT_ICONS.get(dominant, "⚪")
+        total_react = int(row.get("reactions_total", 0))
+
+        parts = []
+        for em in emojis:
+            cat = emoji_dict.get(em, "unknown")
+            parts.append(f"{em}{_CAT_ICONS.get(cat, '⚪')}")
+
+        hint = f"  Реакции: {' '.join(parts)}  ({total_react:,} всего)"
+        hint += f"  →  Подсказка ESI: {icon} {dominant.upper()}"
+        return hint
+
+    except Exception:
+        return ""
+
 
 # Отображает пост для разметки. Показывает канал, дату, статистику и текст (обрезая слишком длинные).
 def _show_post(idx: int, total: int, row: pd.Series) -> None:
@@ -69,14 +124,17 @@ def _show_post(idx: int, total: int, row: pd.Series) -> None:
     print(f"  Канал:  {row['channel_label']}  (@{row['channel_username']})")
     print(f"  Дата:   {str(row['date'])[:10]}")
     print(f"  Просм.: {int(row.get('views', 0)):,}   "
-          f"Реакции: {int(row.get('reactions_total', 0)):,}   "
           f"Репосты: {int(row.get('forwards', 0)):,}")
+    # Подсказка на основе эмодзи — выделяем цветом
+    hint = _emoji_hint(row)
+    if hint:
+        print(f"\\033[33m{hint}\\033[0m")   # жёлтый цвет в терминале
     print(f"{'─' * 70}")
     # Обрезаем слишком длинные тексты для удобства чтения
     text = row["text"]
     if len(text) > 800:
-        text = text[:800] + "\n[...текст обрезан...]"
-    print(f"\n{text}\n")
+        text = text[:800] + "\\n[...текст обрезан...]"
+    print(f"\\n{text}\\n")
     print(f"{'─' * 70}")
     print(HELP_LINE)
     print()

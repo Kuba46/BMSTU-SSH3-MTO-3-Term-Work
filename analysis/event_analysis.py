@@ -12,7 +12,7 @@ analysis/event_analysis.py
     event_impact()           — «окна» вокруг ключевых событий: δ тональности
     orientation_divergence() — расхождение гос. vs общ. каналов по времени
 
-Все функции возвращают DataFrame, готовый к передаче в viz/plotter.py.
+Все функции возвращают DataFrame, готовый к передаче в vizualization/plotter_posts.py.
 
 Запуск:
     python -m analysis.event_analysis        # полный анализ
@@ -127,23 +127,42 @@ def sentiment_timeline(
         DataFrame: period, n_posts, pct_positive, pct_neutral, pct_negative,
                    sentiment_index
     """
-    df2 = df.dropna(subset=["sentiment_pred"]).copy()
+    df2 = df.copy()
+    use_proba = all(
+        col in df2.columns
+        for col in ["proba_positive", "proba_neutral", "proba_negative"]
+    )
+    if not use_proba:
+        df2 = df2.dropna(subset=["sentiment_pred"])
 
     rows = []
     for period, grp in df2.set_index("date").resample(freq):
         n = len(grp)
         if n == 0:
             continue
-        n_pos = (grp["sentiment_pred"] == 1).sum()
-        n_neu = (grp["sentiment_pred"] == 0).sum()
-        n_neg = (grp["sentiment_pred"] == -1).sum()
+        if use_proba:
+            p_pos = float(grp["proba_positive"].mean())
+            p_neu = float(grp["proba_neutral"].mean())
+            p_neg = float(grp["proba_negative"].mean())
+            pct_positive = p_pos * 100
+            pct_neutral = p_neu * 100
+            pct_negative = p_neg * 100
+            sentiment_index = p_pos - p_neg
+        else:
+            n_pos = (grp["sentiment_pred"] == 1).sum()
+            n_neu = (grp["sentiment_pred"] == 0).sum()
+            n_neg = (grp["sentiment_pred"] == -1).sum()
+            pct_positive = n_pos / n * 100
+            pct_neutral = n_neu / n * 100
+            pct_negative = n_neg / n * 100
+            sentiment_index = (n_pos - n_neg) / n
         rows.append({
             "period":          period,
             "n_posts":         n,
-            "pct_positive":    n_pos / n * 100,
-            "pct_neutral":     n_neu / n * 100,
-            "pct_negative":    n_neg / n * 100,
-            "sentiment_index": (n_pos - n_neg) / n,
+            "pct_positive":    pct_positive,
+            "pct_neutral":     pct_neutral,
+            "pct_negative":    pct_negative,
+            "sentiment_index": sentiment_index,
         })
     result = pd.DataFrame(rows)
     log.info("sentiment_timeline: %d периодов (freq=%s)", len(result), freq)
@@ -162,7 +181,13 @@ def channel_comparison(
         DataFrame в wide-формате: period как индекс,
         каждый канал — отдельная колонка с sentiment_index
     """
-    df2 = df.dropna(subset=["sentiment_pred", "channel_label"]).copy()
+    df2 = df.copy()
+    use_proba = all(
+        col in df2.columns
+        for col in ["proba_positive", "proba_negative"]
+    )
+    if not use_proba:
+        df2 = df2.dropna(subset=["sentiment_pred", "channel_label"]).copy()
 
     rows = []
     for (period, channel), grp in (
@@ -172,12 +197,18 @@ def channel_comparison(
         n = len(grp)
         if n == 0:
             continue
-        n_pos = (grp["sentiment_pred"] == 1).sum()
-        n_neg = (grp["sentiment_pred"] == -1).sum()
+        if use_proba:
+            sentiment_index = float(grp["proba_positive"].mean()) - float(
+                grp["proba_negative"].mean()
+            )
+        else:
+            n_pos = (grp["sentiment_pred"] == 1).sum()
+            n_neg = (grp["sentiment_pred"] == -1).sum()
+            sentiment_index = (n_pos - n_neg) / n
         rows.append({
             "period":          period,
             "channel_label":   channel,
-            "sentiment_index": (n_pos - n_neg) / n,
+            "sentiment_index": sentiment_index,
             "n_posts":         n,
         })
 
@@ -215,7 +246,13 @@ def orientation_divergence(
     Returns:
         DataFrame: period, state_index, public_index, divergence
     """
-    df2 = df.dropna(subset=["sentiment_pred", "orientation"]).copy()
+    df2 = df.copy()
+    use_proba = all(
+        col in df2.columns
+        for col in ["proba_positive", "proba_negative"]
+    )
+    if not use_proba:
+        df2 = df2.dropna(subset=["sentiment_pred", "orientation"]).copy()
 
     rows = []
     for period, grp in df2.set_index("date").resample(freq):
@@ -228,9 +265,15 @@ def orientation_divergence(
             if n == 0:
                 result_row[f"{orient}_index"] = np.nan
             else:
-                n_pos = (sub["sentiment_pred"] == 1).sum()
-                n_neg = (sub["sentiment_pred"] == -1).sum()
-                result_row[f"{orient}_index"] = (n_pos - n_neg) / n
+                if use_proba:
+                    result_row[f"{orient}_index"] = (
+                        float(sub["proba_positive"].mean())
+                        - float(sub["proba_negative"].mean())
+                    )
+                else:
+                    n_pos = (sub["sentiment_pred"] == 1).sum()
+                    n_neg = (sub["sentiment_pred"] == -1).sum()
+                    result_row[f"{orient}_index"] = (n_pos - n_neg) / n
         rows.append(result_row)
 
     result = pd.DataFrame(rows)
@@ -343,7 +386,7 @@ def run_pipeline(
     Запускает весь ивент-анализ и сохраняет результаты в RESULTS_DIR.
 
     Returns:
-        Словарь {name: DataFrame} для передачи в viz/plotter.py
+        Словарь {name: DataFrame} для передачи в vizualization/plotter_posts.py
     """
     df = load_predictions(input_path=input_path)
     results = {

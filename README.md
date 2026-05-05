@@ -14,14 +14,15 @@
 ## Структура проекта
 
 ```text
-dolina_analysis/
+Algorithm/
 ├── data/                   # Сбор и первичная обработка данных
 │   ├── raw/                # Сырые CSV с постами и комментариями
 │   ├── labeled/            # Файл ручной разметки (posts_labeled.csv)
 │   ├── processed/          # Обработанные данные (после NLP)
+│   ├── cleaner.py          # Очистка данных.
 │   ├── collector.py        # Асинхронный сборщик через Telethon
 │   ├── dataset.py          # Загрузка, валидация, статистика
-│   └── labeler.py          # Ручная разметка тональности постов для обучения моделей
+│   └── labeler.py          # Интерактивная разметка тональности постов
 ├── nlp/                    # Предобработка и векторизация текста
 │   ├── preprocessor.py     # Очистка: URL, эмодзи, хештеги и пр.
 │   ├── lemmatizer.py       # Лемматизация (pymorphy2) + фильтрация стоп‑слов
@@ -32,7 +33,7 @@ dolina_analysis/
 │   ├── svm_clf.py          # SVM (LinearSVC + калибровка)
 │   ├── predict.py          # Авторазметка всего корпуса
 │   └── saved/              # Сериализованные модели (.pkl)
-├── analysis/               # Кластеризация и событийный анализ
+├── analysis/               # Кластеризация, событийный и emoji-анализ
 │   ├── cluster.py          # K‑Means и DBSCAN, t‑SNE
 │   ├── event_analysis.py   # Временные ряды тональности и метрики событий
 │   ├── aggregator.py       # Агрегация по каналам, периодам, ориентации
@@ -40,7 +41,9 @@ dolina_analysis/
 ├── evaluation/             # Оценка качества моделей
 │   └── metrics.py          # Precision, Recall, F1, сравнение моделей
 ├── vizualization/          # Визуализация
-│   └── plotter.py          # Графики: активность, тональность, тепловые карты, t‑SNE
+│   ├── plotter_posts.py    # Графики по постам
+│   ├── plotter_comments.py # Графики по комментариям
+│   └── plotter_emoji.py    # Графики по эмодзи-реакциям
 ├── config/
 │   ├── settings.py         # Общие константы, пути, параметры моделей
 │   └── telegram_credentials_local.py  # Учётные данные Telegram API (не под версионным контролем)
@@ -111,9 +114,10 @@ python -m data.collector
 Будут загружены посты и комментарии из заданных каналов за указанный период.
 Результат – CSV‑файлы в `data/raw/`.
 
-### Шаг 2. Обработка и валидация
+### Шаг 2. Очистка, обработка и валидация
 
 ```bash
+python -m data.cleaner
 python -m data.dataset
 ```
 
@@ -157,6 +161,11 @@ python -m nlp.vectorizer
 Он должен содержать колонки `channel_username`, `post_id`, `sentiment` (1, 0, -1).
 Создать его можно с помощью скрипта `data/labeler.py` (интерактивная разметка в терминале).
 
+Подсказки в разметчике:
+
+- `p` — позитивная, `n` — нейтральная, `g` — негативная, `s` — пропустить, `q` — сохранить и выйти
+- отображается подсказка по эмодзи‑реакциям (если они есть)
+
 Запуск разметчика:
 
 ```bash
@@ -183,14 +192,14 @@ python -m models.predict
 Для комментариев:
 
 ```bash
-python -m models.predict --input data/processed/comments_processed.csv \
-    --output results/comments_predictions.csv
+python -m models.predict --input data/processed/comments_processed.csv --output results/comments_predictions.csv
 ```
 
-### Шаг 7. Агрегация и событийный анализ
+### Шаг 7. Агрегация, emoji-анализ и событийный анализ
 
 ```bash
 python -m analysis.aggregator
+python -m analysis.emoji_analyzer
 python -m analysis.event_analysis
 ```
 
@@ -223,14 +232,9 @@ K‑Means и DBSCAN, проекция t‑SNE. Сохраняется `results/c
 ### Шаг 9. Визуализация
 
 ```bash
-python -m vizualization.plotter
-```
-
-Для комментариев и общего корпуса:
-
-```bash
-python -m vizualization.plotter --prefix comments_
-python -m vizualization.plotter --prefix all_
+python -m vizualization.plotter_posts
+python -m vizualization.plotter_comments
+python -m vizualization.plotter_emoji
 ```
 
 Генерируются все графики в папку `results/figures/`:
@@ -242,6 +246,24 @@ python -m vizualization.plotter --prefix all_
 - t‑SNE визуализация кластеров
 - матрицы ошибок и сравнение моделей
 - влияние событий на тональность
+- эмодзи‑реакции и Emoji Sentiment Index (ESI)
+
+#### Примечание про эмодзи‑шрифты
+
+Если эмодзи не отображаются и появляются предупреждения `findfont`, установите emoji‑шрифт и сбросьте кэш:
+
+```bash
+brew tap homebrew/cask-fonts
+brew install --cask font-noto-emoji
+rm -f ~/.matplotlib/fontlist-v*.json
+rm -rf ~/.cache/matplotlib
+```
+
+Либо задайте путь явно через переменную окружения:
+
+```bash
+export EMOJI_FONT_PATH="/Library/Fonts/NotoEmoji-Regular.ttf"
+```
 
 
 ### Шаг 10. Запуск всего пайплайна (опционально)
