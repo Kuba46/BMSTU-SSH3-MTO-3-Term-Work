@@ -3,12 +3,13 @@ data/cleaner.py
 ===============
 Очистка корпуса после первичного сбора.
 
-Три механизма очистки:
+Четыре механизма очистки:
     1. HARD EXCLUSIONS — стоп-фразы: если пост содержит такую фразу,
     он удаляется безусловно (смерти артистов, зарубежные события, не связанные с делом и т.д.)
     2. DOMINANCE CHECK — доминирование темы: подсчитывает число попаданий
     по ключевым словам дела vs число стоп-слов; удаляет пост если нерелевантная тема явно доминирует
-    3. MANUAL REVIEW — интерактивный просмотр пограничных случаев (посты с низким score) для ручного решения
+    3. ROUNDUP FILTER — фильтрация обычных новостных сводок/дайджестов по разным темам
+    4. MANUAL REVIEW — интерактивный просмотр пограничных случаев (посты с низким score) для ручного решения
 
 Запуск:
     python -m data.cleaner                     # авто-очистка всего корпуса
@@ -20,6 +21,7 @@ data/cleaner.py
 import argparse
 import logging
 import os
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -83,6 +85,10 @@ HARD_EXCLUSIONS: list[str] = [
     "маньяк задержан",
     "серийный убийца",
     "теракт в",
+
+    "Ozon",
+    "AliExpress",
+    "Китай",
 ]
 
 CONTEXTUAL_EXCLUSIONS: list[tuple[str, set[str]]] = [
@@ -150,6 +156,60 @@ def _has_contextual_exclusion(text: str) -> str | None:
     return None
 
 
+def _is_roundup(text: str) -> bool:
+    """
+    Эвристика для определения обычных сводок/дайджестов новостей по разным темам.
+
+    Правила (комбинация):
+      - ключевые слова: 'дайджест', 'обзор', 'сводка', 'подборка', 'новости дня' и т.п.;
+      - наличие маркированных/нумерованных пунктов (•, -, 1., 2.) — много пунктов;
+      - много коротких строк/заголовков (список коротких тем);
+      - несколько '—' (тире) или ':' в тексте, разделяющих темы.
+
+    Возвращает True если текст выглядит как сводка/подборка.
+    """
+    if not isinstance(text, str) or not text.strip():
+        return False
+
+    t = text.lower()
+
+    roundup_keywords = [
+        "дайджест", "обзор", "сводка", "подборка", "новости дня", "новости за",
+        "итоги дня", "главное из", "главное за", "главное к этому часу",
+        "кратко", "в выпуске", "подборка новостей", "топ тем", "топ-",
+    ]
+
+    topic_hints = [
+        "полит", "эконом", "крипто", "спорт", "происшеств", "мир", "росси",
+        "наука", "технолог", "культура", "шоу", "погода", "бирж", "курс",
+    ]
+
+    has_roundup_keyword = any(k in t for k in roundup_keywords)
+    topic_hits = sum(1 for topic in topic_hints if topic in t)
+
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    bullet_like = 0
+    short_lines = 0
+    for ln in lines:
+        if re.match(r"^(?:[•\-*—]|\d+[\.)])\s+", ln):
+            bullet_like += 1
+        if len(ln.split()) <= 8:
+            short_lines += 1
+
+    separator_count = text.count("—") + text.count(" - ") + text.count(":")
+
+    if has_roundup_keyword and (bullet_like >= 2 or short_lines >= 5 or separator_count >= 3 or topic_hits >= 3):
+        return True
+    if bullet_like >= 4:
+        return True
+    if short_lines >= 6 and separator_count >= 2:
+        return True
+    if topic_hits >= 4 and short_lines >= 4:
+        return True
+
+    return False
+
+
 def classify_post(text: str) -> tuple[str, str]:
     """
     Классифицирует пост по трём категориям:
@@ -173,12 +233,21 @@ def classify_post(text: str) -> tuple[str, str]:
     if contextual:
         return "remove", f"контекстное исключение: «{contextual}»"
 
-    # 3. Dominance check по якорным словам
+    # 3. Dominance check по якорным словам (скоро нужен для решения по сводкам)
     score = _score(text)
+
+    # 3.1. Выкидываем сводки/дайджесты, если они не содержат якорей
+    if _is_roundup(text):
+        if score < MIN_ANCHOR_SCORE:
+            return "remove", "сводка/дайджест"
+        else:
+            return "keep", f"якорей: {score} (в сводке)"
+
+    # 4. Dominance check по якорным словам
     if score >= MIN_ANCHOR_SCORE:
         return "keep", f"якорей: {score}"
 
-    # 4. Пограничный случай — нет ни стоп-фраз ни якорей
+    # 5. Пограничный случай — нет ни стоп-фраз ни якорей
     return "review", "нет якорных слов, нет стоп-фраз — требует просмотра"
 
 

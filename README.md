@@ -123,6 +123,9 @@ python -m data.dataset
 
 Выполняется сборка сводного файла, проверка дубликатов, статистика корпуса.
 
+В `data.cleaner` дополнительно фильтруются посты в формате обычных новостных сводок/дайджестов
+(например, подборки разнородных тем с маркерами списков и формулировками вида «главное за день»).
+
 Если нужны комментарии отдельным файлом, объедините их:
 
 ```bash
@@ -181,7 +184,20 @@ python -m models.svm_clf          # SVM
 
 Метрики сохраняются в `results/metrics.json`.
 
-### Шаг 6. Автоматическая разметка всего корпуса
+### Шаг 6. Оценка качества моделей
+
+После обучения (и наличия `data/processed/posts_processed.csv` и `data/labeled/posts_labeled.csv`) можно запускать оценку качества:
+
+```bash
+python -m evaluation.metrics
+```
+
+Дополнительно:
+
+- `python -m evaluation.metrics --model logreg` или `--model svm`
+- `python -m evaluation.metrics --errors` для анализа ошибок
+
+### Шаг 7. Автоматическая разметка всего корпуса
 
 ```bash
 python -m models.predict
@@ -195,7 +211,7 @@ python -m models.predict
 python -m models.predict --input data/processed/comments_processed.csv --output results/comments_predictions.csv
 ```
 
-### Шаг 7. Агрегация, emoji-анализ и событийный анализ
+### Шаг 8. Агрегация, emoji-анализ и событийный анализ
 
 ```bash
 python -m analysis.aggregator
@@ -221,7 +237,7 @@ python -m analysis.aggregator --input results/predictions_all.csv --prefix all_
 python -m analysis.event_analysis --input results/predictions_all.csv --prefix all_
 ```
 
-### Шаг 8. Кластеризация
+### Шаг 9. Кластеризация
 
 ```bash
 python -m analysis.cluster
@@ -229,7 +245,7 @@ python -m analysis.cluster
 
 K‑Means и DBSCAN, проекция t‑SNE. Сохраняется `results/clusters.csv`.
 
-### Шаг 9. Визуализация
+### Шаг 10. Визуализация
 
 ```bash
 python -m vizualization.plotter_posts
@@ -265,8 +281,7 @@ rm -rf ~/.cache/matplotlib
 export EMOJI_FONT_PATH="/Library/Fonts/NotoEmoji-Regular.ttf"
 ```
 
-
-### Шаг 10. Запуск всего пайплайна (опционально)
+### Шаг 11. Запуск всего пайплайна (опционально)
 
 Если реализован `main.py`, можно выполнить:
 

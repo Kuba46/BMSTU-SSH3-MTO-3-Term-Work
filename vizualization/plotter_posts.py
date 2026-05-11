@@ -208,7 +208,6 @@ def plot_sentiment_index(df: pd.DataFrame, show: bool = False) -> Path:
 
 def plot_channel_heatmap(df_wide: pd.DataFrame, show: bool = False) -> Path:
     fig, ax = plt.subplots(figsize=(14, 7))
-    show_annotations = df_wide.shape[0] * df_wide.shape[1] <= 60
 
     sns.heatmap(
         df_wide.T,
@@ -218,7 +217,7 @@ def plot_channel_heatmap(df_wide: pd.DataFrame, show: bool = False) -> Path:
         vmin=-1, vmax=1,
         linewidths=0.4,
         linecolor="#ecf0f1",
-        annot=show_annotations,
+        annot=True,
         fmt=".2f",
         annot_kws={"fontsize": 8},
         cbar_kws={"label": "Индекс тональности S"},

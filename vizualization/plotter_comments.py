@@ -116,7 +116,7 @@ def plot_activity_timeline(df: pd.DataFrame, show: bool = False) -> Path:
            width=5, color="#16a085", alpha=0.75, label="Число комментариев")
     ax.set_xlabel("Дата")
     ax.set_ylabel("Число комментариев")
-    ax.set_title("Рис. 3.1. Динамика активности комментариев\n"
+    ax.set_title("Динамика активности комментариев\n"
                  "(март–декабрь 2025 г., недельная агрегация)")
 
     y_max = df2["n_posts"].max() * 1.15
@@ -152,7 +152,7 @@ def plot_sentiment_timeline(df: pd.DataFrame, show: bool = False) -> Path:
     ax.set_xlabel("Дата")
     ax.set_ylabel("Доля комментариев, %")
     ax.set_ylim(0, 100)
-    ax.set_title("Рис. 3.2. Динамика тональности комментариев\n"
+    ax.set_title("Динамика тональности комментариев\n"
                  "(март–декабрь 2025 г., недельная агрегация)")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
@@ -173,11 +173,9 @@ def plot_sentiment_index(df: pd.DataFrame, show: bool = False) -> Path:
     periods = df2["period"].values
     si = df2["weighted_si"].values
 
-    ax.fill_between(periods, si, 0,
-                    where=(si >= 0),
+    ax.fill_between(periods, si, 0, where=(si >= 0),
                     alpha=0.3, color=COLOR_POSITIVE, label="Позитивная зона")
-    ax.fill_between(periods, si, 0,
-                    where=(si < 0),
+    ax.fill_between(periods, si, 0, where=(si < 0),
                     alpha=0.3, color=COLOR_NEGATIVE, label="Негативная зона")
     ax.plot(periods, si, color="#2c3e50", linewidth=1.5)
     ax.axhline(0, color="#7f8c8d", linewidth=0.8, linestyle="-")
@@ -187,7 +185,7 @@ def plot_sentiment_index(df: pd.DataFrame, show: bool = False) -> Path:
     ax.set_ylim(-y_abs, y_abs)
     ax.set_xlabel("Дата")
     ax.set_ylabel("Взвешенный индекс тональности S(t)")
-    ax.set_title("Рис. 3.3. Взвешенный индекс тональности комментариев S(t)\n"
+    ax.set_title("Взвешенный индекс тональности комментариев S(t)\n"
                  "(с учётом охвата; диапазон [-1, +1])")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
@@ -200,7 +198,6 @@ def plot_sentiment_index(df: pd.DataFrame, show: bool = False) -> Path:
 
 def plot_channel_heatmap(df_wide: pd.DataFrame, show: bool = False) -> Path:
     fig, ax = plt.subplots(figsize=(14, 7))
-    show_annotations = df_wide.shape[0] * df_wide.shape[1] <= 60
 
     sns.heatmap(
         df_wide.T,
@@ -210,12 +207,12 @@ def plot_channel_heatmap(df_wide: pd.DataFrame, show: bool = False) -> Path:
         vmin=-1, vmax=1,
         linewidths=0.4,
         linecolor="#ecf0f1",
-        annot=show_annotations,
+        annot=True,
         fmt=".2f",
         annot_kws={"fontsize": 8},
         cbar_kws={"label": "Индекс тональности S"},
     )
-    ax.set_title("Рис. 3.4. Тепловая карта индекса тональности комментариев\n"
+    ax.set_title("Тепловая карта индекса тональности комментариев\n"
                  "по каналам и месяцам (март–декабрь 2025 г.)")
     ax.set_xlabel("Период (месяц)")
     ax.set_ylabel("Telegram-канал")
@@ -242,7 +239,7 @@ def plot_orientation_divergence(df: pd.DataFrame, show: bool = False) -> Path:
                  linewidth=1.8, linestyle="--", label="Общественные каналы")
     ax1.axhline(0, color="#bdc3c7", linewidth=0.8)
     ax1.set_ylabel("Индекс тональности S(t)")
-    ax1.set_title("Рис. 3.5. Сравнение тональности комментариев\n"
+    ax1.set_title("Сравнение тональности комментариев\n"
                   "в государственных и общественных каналах")
     ax1.legend()
     ax1.set_ylim(-1.0, 1.0)
@@ -268,11 +265,9 @@ def plot_orientation_divergence(df: pd.DataFrame, show: bool = False) -> Path:
                 color=[COLOR_STATE if d >= 0 else COLOR_PUBLIC for d in divergence],
                 alpha=0.25)
         ax2.plot(div_periods, smooth, color="#2c3e50", linewidth=1.8, label="Сглаженный тренд")
-        ax2.fill_between(div_periods, smooth, 0,
-                         where=(smooth >= 0),
+        ax2.fill_between(div_periods, smooth, 0, where=(smooth >= 0),
                          color=COLOR_STATE, alpha=0.12)
-        ax2.fill_between(div_periods, smooth, 0,
-                         where=(smooth < 0),
+        ax2.fill_between(div_periods, smooth, 0, where=(smooth < 0),
                          color=COLOR_PUBLIC, alpha=0.12)
         ax2.axhline(0, color="#bdc3c7", linewidth=0.8)
         ax2.set_xlabel("Дата")
@@ -317,7 +312,7 @@ def plot_event_impact(df: pd.DataFrame, show: bool = False) -> Path:
         ax.axvline(0, color="#7f8c8d", linewidth=0.8)
         ax.set_xlim(-0.1, 0.1)
         ax.set_xlabel("Δ индекса тональности (после − до события)")
-        ax.set_title("Рис. 3.6. Изменение тональности комментариев\n"
+        ax.set_title("Изменение тональности комментариев\n"
                      "в ±7 дней вокруг ключевых событий дела Долиной")
         ax.invert_yaxis()
         ax.grid(axis="x", alpha=0.3)
@@ -331,7 +326,7 @@ def plot_event_impact(df: pd.DataFrame, show: bool = False) -> Path:
     ax.axvline(0, color="#7f8c8d", linewidth=0.8)
     ax.bar_label(bars, fmt="%+.3f", fontsize=9, padding=3)
     ax.set_xlabel("Δ индекса тональности (после − до события)")
-    ax.set_title("Рис. 3.6. Изменение тональности комментариев\n"
+    ax.set_title("Изменение тональности комментариев\n"
                  "в ±7 дней вокруг ключевых событий дела Долиной")
     ax.invert_yaxis()
     max_abs = float(np.nanmax(np.abs(df2["delta"])))

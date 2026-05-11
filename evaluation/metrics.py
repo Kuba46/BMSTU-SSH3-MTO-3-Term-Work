@@ -297,7 +297,6 @@ def confidence_analysis(model_name: str = "logreg") -> pd.DataFrame:
 
 
 # ── Сохранение отчёта ─────────────────────────────────────────────────────────
-
 def save_report(
     metrics_lr: dict,
     metrics_svm: dict,
