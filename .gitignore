@@ -6,6 +6,8 @@ __pycache__
 data/raw/*
 data/labeled/*
 data/processed/*
+data/cleaned/*
+data/removed/*
 models/*
 results/*
 figures/*

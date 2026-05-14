@@ -17,6 +17,8 @@
 Algorithm/
 ├── data/                   # Сбор и первичная обработка данных
 │   ├── raw/                # Сырые CSV с постами и комментариями
+│   ├── cleaned/            # Очищенные CSV (результат data.cleaner)
+│   ├── removed/            # Удалённые посты после очистки
 │   ├── labeled/            # Файл ручной разметки (posts_labeled.csv)
 │   ├── processed/          # Обработанные данные (после NLP)
 │   ├── cleaner.py          # Очистка данных.
@@ -123,8 +125,7 @@ python -m data.dataset
 
 Выполняется сборка сводного файла, проверка дубликатов, статистика корпуса.
 
-В `data.cleaner` дополнительно фильтруются посты в формате обычных новостных сводок/дайджестов
-(например, подборки разнородных тем с маркерами списков и формулировками вида «главное за день»).
+После очистки создаются файлы в `data/cleaned/` (raw‑файлы не изменяются). Далее используется очищенный корпус.
 
 Если нужны комментарии отдельным файлом, объедините их:
 
@@ -132,7 +133,7 @@ python -m data.dataset
 python -m data.dataset --comments
 ```
 
-Результат – `data/raw/comments_raw.csv`.
+Результат – `data/cleaned/comments_cleaned.csv`.
 
 ### Шаг 3. Предобработка текста
 
@@ -146,7 +147,7 @@ python -m nlp.lemmatizer
 Для комментариев используйте те же шаги, но с входным/выходным файлом:
 
 ```bash
-python -m nlp.preprocessor --input data/raw/comments_raw.csv --output data/processed/comments_processed.csv
+python -m nlp.preprocessor --input data/cleaned/comments_cleaned.csv --output data/processed/comments_processed.csv
 python -m nlp.lemmatizer --input data/processed/comments_processed.csv --output data/processed/comments_processed.csv
 ```
 

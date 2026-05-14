@@ -3,19 +3,27 @@ data/cleaner.py
 ===============
 Очистка корпуса после первичного сбора.
 
-Четыре механизма очистки:
+Три механизма очистки:
     1. HARD EXCLUSIONS — стоп-фразы: если пост содержит такую фразу,
     он удаляется безусловно (смерти артистов, зарубежные события, не связанные с делом и т.д.)
     2. DOMINANCE CHECK — доминирование темы: подсчитывает число попаданий
     по ключевым словам дела vs число стоп-слов; удаляет пост если нерелевантная тема явно доминирует
-    3. ROUNDUP FILTER — фильтрация обычных новостных сводок/дайджестов по разным темам
-    4. MANUAL REVIEW — интерактивный просмотр пограничных случаев (посты с низким score) для ручного решения
+    3. MANUAL REVIEW — интерактивный просмотр пограничных случаев (посты с низким score) для ручного решения
 
 Запуск:
     python -m data.cleaner                     # авто-очистка всего корпуса
     python -m data.cleaner --review            # + ручной просмотр пограничных
     python -m data.cleaner --ch shot_shot      # только один канал
     python -m data.cleaner --dry-run           # показать что будет удалено
+
+Выход:
+    data/cleaned/{username}_cleaned.csv
+    data/cleaned/posts_cleaned.csv
+    data/cleaned/{username}_comments_cleaned.csv
+    data/cleaned/comments_cleaned.csv
+    data/removed/{username}_removed.csv
+    data/removed/{username}_comments_removed.csv
+    (raw-файлы не изменяются)
 """
 
 import argparse
@@ -29,8 +37,17 @@ import pandas as pd
 from config.settings import (
     RAW_DIR,
     RAW_CSV,
+    CLEANED_DIR,
+    CLEANED_CSV,
+    REMOVED_DIR,
+    COMMENTS_CLEANED_CSV,
     CHANNELS,
     raw_csv_for,
+    comments_raw_for,
+    cleaned_csv_for,
+    comments_cleaned_for,
+    removed_csv_for,
+    comments_removed_for,
 )
 
 log = logging.getLogger(__name__)
@@ -70,41 +87,203 @@ HARD_EXCLUSIONS: list[str] = [
     "умерла музыкантша",
     "скончался музыкант",
     "прощание с артист",
+    "кладбищ",
+    "троекур",
 
     "кобзон",
     "зыкина",
     "магомаев",
     "лещенко",
+    "голубкин",
 
     # ── Спорт ─────────────────────────────────────────────────────────────────
     "чемпионат мира по футболу",
     "лига чемпионов",
     "финал кубка",
+    "роналду",
+    "ан-наср",
+    "футболистом-миллиардером",
 
     # ── Криминальные новости без связи с делом ────────────────────────────────
     "маньяк задержан",
     "серийный убийца",
     "теракт в",
+    "взрыве в газпромбанке",
+    "газпромбанк",
 
-    "Ozon",
-    "AliExpress",
-    "Китай",
+    "ozon",
+    "aliexpress",
+    "китай",
+    "blablacar",
+
+    # ── Религиозные новости без связи с делом ─────────────────────────────
+    "пап римск",
+    "свят престол",
+    "кандидат на место папы",
+
+    # ── Рекламные/стройка без связи с делом ───────────────────────────────
+    "школа № 1329",
+    "гбоу школа № 1329",
+    "жилые кварталы set",
+    "жилые кварталы veer",
+    "жк бизнес-класса",
+    "девелопером mr",
+
+    # ── География/топонимы с "долиной" ────────────────────────────────────
+    "долина скаджит",
+    "долине скаджит",
+    "долина кашмир",
+    "долине кашмир",
+    "долина рой",
+    "долина ройя",
+    "долине рой",
+    "долина царей",
+    "долина цариц",
+    "долине царей",
+    "долине цариц",
+    "долина смерти",
+    "кремниевая долина",
+    "долина кремния",
+    "долина гейзеров",
+
+    # ── Пропажи/розыск ─────────────────────────────────────────────────────
+    "пропал",
+    "пропала",
+    "пропавш",
+    "пропажа",
+    "разыскивают",
+    "розыск",
+    "бесследно",
+    "поиски",
+    "волонтёр",
+    "волонтер",
+    "потеря",
+
+    "иноагент",
+    "иностран агент",
+]
+
+PROMO_EXCLUSIONS: list[str] = [
+    # ── Политическая/рекламная повестка без связи с делом ──────────────────
+    "региональное отделение",
+    "реготделение",
+    "команда",
+    "депутат",
+    "депутаты",
+    "выборы",
+    "партия",
+    "проект",
+    "инициатив",
+    "избирател",
+    "кампания",
+    "новые люди",
+    "да — переменам",
+    "да переменам",
+    "голос города",
+    "я в деле",
+    "старательский фарт",
+    "магадан",
+    "камчатк",
+    "долина гейзеров",
+
+    "читайте самые интересные публикации",
+    "можайск район",
+    "школ",
+]
+
+NEWS_DIGEST_PHRASES: list[str] = [
+    "итоги дня",
+    "главное за день",
+    "главные новости",
+    "главные события",
+    "сводка новостей",
+    "сводка дня",
+    "дайджест",
+    "дайджест новостей",
+    "утренняя сводка",
+    "вечерняя сводка",
+    "коротко о главном",
+    "за сутки",
+    "что известно к этому часу",
+    "подборка новостей",
+    "интересные публикации за неделю:",
+    "главные материалы агентства к утру",
+    "Главные материалы агентства",
+    "читайте",
+]
+
+NEGATIVE_TOPICS: list[str] = [
+    # Военные/боевые темы
+    "войн",
+    "спецоперац",
+    "сво",
+    "обстрел",
+    "удар",
+    "фронт",
+    "дрон",
+    "ракета",
+    "минобороны",
+    "вражеск",
+    "всу",
+    "украин",
+    "одесс",
+    "кишинев",
+    "границ",
+    "погранслужб",
+    "днестр",
+    "киев",
+    "донецк",
+    "луганск",
+    "харьков",
+    "запорож",
+    "мариупол",
+    # Криминальные сводки
+    "убийств",
+    "убит",
+    "труп",
+    "зарезал",
+    "расстрел",
+    "стрельб",
+    "поножов",
+    "ограблен",
+    "краж",
+    "мошенничеств",
+    "похитил",
+    "изнасилован",
+    "террор",
+    "теракт",
+    "подстанц",
+    "закладк",
+    "дропер",
+    "мессенджер",
+    "whatsapp",
+    "роскомнадзор",
 ]
 
 CONTEXTUAL_EXCLUSIONS: list[tuple[str, set[str]]] = [
-    ("трамп",           {"долин", "лурье", "квартир", "суд долин", "реституц"}),
-    ("байден",          {"долин", "лурье", "квартир", "реституц"}),
     ("умер",            {"долин", "лурье", "квартир", "суд", "реституц", "покупател"}),
     ("скончал",         {"долин", "лурье", "квартир", "суд", "реституц"}),
     ("смерть",          {"долин", "лурье", "суд долин", "реституц", "покупател"}),
-    ("похороны",        {"долин", "лурье", "квартир", "суд"}),
-    ("верховный суд сша",{"долин", "лурье", "квартир"}),
+    ("сво",             {"долин", "лурье", "квартир", "реституц", "суд"}),
+    ("войн",            {"долин", "лурье", "квартир", "реституц", "суд"}),
+    ("убийств",         {"долин", "лурье", "квартир", "реституц", "суд"}),
+    ("труп",            {"долин", "лурье", "квартир", "реституц", "суд"}),
+    ("whatsapp",        {"долин", "лурье"}),
+    ("мессенджер",      {"долин", "лурье"}),
+    ("роскомнадзор",    {"долин", "лурье"}),
+    ("подстанц",        {"долин", "лурье"}),
+    ("теракт",          {"долин", "лурье"}),
+    ("дропер",          {"долин", "лурье"}),
+    ("закладк",         {"долин", "лурье"}),
+    ("главные новости", {"долин", "лурье"}),
+    ("главные события", {"долин", "лурье"}),
+    ("итоги дня",       {"долин", "лурье"}),
 ]
 
 ANCHORS: list[str] = [
-    "квартир",
+    "долин",
+    "лурье",
     "реституц",
-    "добросовестный",
     "покупател",
     "02-0387",
     "хамовнически",
@@ -113,21 +292,36 @@ ANCHORS: list[str] = [
     "112 млн",
     "175 млн",
     "верховный суд",
-    "иск",
     "судебное решение",
-    "апелляц",
-    "кассац",
 ]
 
 # Минимальный score для автоматического принятия поста
 # score = число попаданий по ANCHORS
 MIN_ANCHOR_SCORE = 1
 
+_RE_HTTP_URL = re.compile(r"https?://\S+", flags=re.IGNORECASE)
+
+
+def _sanitize_text(text: str) -> str:
+    if not isinstance(text, str):
+        return ""
+    text = _RE_HTTP_URL.sub(" ", text)
+    text = text.replace("\n", " ")
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
 
 def _score(text: str) -> int:
     """Подсчитывает число якорных слов в тексте (признаки релевантности)."""
     t = text.lower()
-    return sum(1 for anchor in ANCHORS if anchor in t)
+    score = 0
+    for anchor in ANCHORS:
+        if anchor not in t:
+            continue
+        if anchor == "долин" and any(x in t for x in ["долинск", "долинское", "долинский", "долинская"]):
+            continue
+        score += 1
+    return score
 
 
 def _has_hard_exclusion(text: str) -> str | None:
@@ -137,6 +331,18 @@ def _has_hard_exclusion(text: str) -> str | None:
     """
     t = text.lower()
     for phrase in HARD_EXCLUSIONS:
+        if phrase in t:
+            return phrase
+    return None
+
+
+def _has_promo_exclusion(text: str) -> str | None:
+    """
+    Возвращает первую найденную промо-фразу или None.
+    Проверка по точному вхождению (lower-case).
+    """
+    t = text.lower()
+    for phrase in PROMO_EXCLUSIONS:
         if phrase in t:
             return phrase
     return None
@@ -156,57 +362,26 @@ def _has_contextual_exclusion(text: str) -> str | None:
     return None
 
 
-def _is_roundup(text: str) -> bool:
-    """
-    Эвристика для определения обычных сводок/дайджестов новостей по разным темам.
-
-    Правила (комбинация):
-      - ключевые слова: 'дайджест', 'обзор', 'сводка', 'подборка', 'новости дня' и т.п.;
-      - наличие маркированных/нумерованных пунктов (•, -, 1., 2.) — много пунктов;
-      - много коротких строк/заголовков (список коротких тем);
-      - несколько '—' (тире) или ':' в тексте, разделяющих темы.
-
-    Возвращает True если текст выглядит как сводка/подборка.
-    """
-    if not isinstance(text, str) or not text.strip():
-        return False
-
+def _negative_score(text: str) -> int:
     t = text.lower()
+    return sum(1 for phrase in NEGATIVE_TOPICS if phrase in t)
 
-    roundup_keywords = [
-        "дайджест", "обзор", "сводка", "подборка", "новости дня", "новости за",
-        "итоги дня", "главное из", "главное за", "главное к этому часу",
-        "кратко", "в выпуске", "подборка новостей", "топ тем", "топ-",
+
+def _is_news_digest(text: str) -> bool:
+    t = text.lower()
+    if any(phrase in t for phrase in NEWS_DIGEST_PHRASES):
+        return True
+    # Много пунктов/маркеров — типичная сводка
+    bullet_lines = re.findall(r"(?m)^\s*[-•—]\s", text)
+    if len(bullet_lines) >= 3:
+        return True
+    # Много коротких строк с двоеточиями ("Тема: описание")
+    colon_lines = [
+        line for line in text.splitlines()
+        if ":" in line and 0 < len(line.strip()) <= 120
     ]
-
-    topic_hints = [
-        "полит", "эконом", "крипто", "спорт", "происшеств", "мир", "росси",
-        "наука", "технолог", "культура", "шоу", "погода", "бирж", "курс",
-    ]
-
-    has_roundup_keyword = any(k in t for k in roundup_keywords)
-    topic_hits = sum(1 for topic in topic_hints if topic in t)
-
-    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-    bullet_like = 0
-    short_lines = 0
-    for ln in lines:
-        if re.match(r"^(?:[•\-*—]|\d+[\.)])\s+", ln):
-            bullet_like += 1
-        if len(ln.split()) <= 8:
-            short_lines += 1
-
-    separator_count = text.count("—") + text.count(" - ") + text.count(":")
-
-    if has_roundup_keyword and (bullet_like >= 2 or short_lines >= 5 or separator_count >= 3 or topic_hits >= 3):
+    if len(colon_lines) >= 4:
         return True
-    if bullet_like >= 4:
-        return True
-    if short_lines >= 6 and separator_count >= 2:
-        return True
-    if topic_hits >= 4 and short_lines >= 4:
-        return True
-
     return False
 
 
@@ -223,31 +398,35 @@ def classify_post(text: str) -> tuple[str, str]:
     if not isinstance(text, str) or not text.strip():
         return "remove", "пустой текст"
 
+    score = _score(text)
+
     # 1. Жёсткие стоп-фразы
     hard = _has_hard_exclusion(text)
     if hard:
         return "remove", f"стоп-фраза: «{hard}»"
+
+    # 1.1 Промо/агитация — удаляем только если нет якорей
+    promo = _has_promo_exclusion(text)
+    if promo and score == 0:
+        return "remove", f"промо-стоп-фраза: «{promo}»"
 
     # 2. Контекстные стоп-фразы
     contextual = _has_contextual_exclusion(text)
     if contextual:
         return "remove", f"контекстное исключение: «{contextual}»"
 
-    # 3. Dominance check по якорным словам (скоро нужен для решения по сводкам)
-    score = _score(text)
+    # 2.1 Сводки/дайджесты — удаляем даже при единичном якоре
+    if _is_news_digest(text) and score <= 1:
+        return "remove", "сводка/дайджест новостей"
 
-    # 3.1. Выкидываем сводки/дайджесты, если они не содержат якорей
-    if _is_roundup(text):
-        if score < MIN_ANCHOR_SCORE:
-            return "remove", "сводка/дайджест"
-        else:
-            return "keep", f"якорей: {score} (в сводке)"
-
-    # 4. Dominance check по якорным словам
+    # 3. Dominance check по якорным словам
+    negative = _negative_score(text)
     if score >= MIN_ANCHOR_SCORE:
+        if negative >= max(2, score + 1):
+            return "remove", f"доминирование нерелевантной темы (neg={negative}, anchors={score})"
         return "keep", f"якорей: {score}"
 
-    # 5. Пограничный случай — нет ни стоп-фраз ни якорей
+    # 4. Пограничный случай — нет ни стоп-фраз ни якорей
     return "review", "нет якорных слов, нет стоп-фраз — требует просмотра"
 
 
@@ -370,14 +549,14 @@ def clean_channel_file(
     username: str,
     dry_run: bool = False,
     with_review: bool = False,
-) -> tuple[int, int]:
+) -> tuple[int, int, set[int]]:
     """
     Очищает файл одного канала {username}_raw.csv.
-    Сохраняет очищенный файл поверх оригинала.
-    Нерелевантные посты сохраняет в {username}_removed.csv для аудита.
+    Сохраняет очищенный файл в data/cleaned/{username}_cleaned.csv.
+    Исходные raw-файлы не изменяются.
 
     Returns:
-        (n_kept, n_removed)
+        (n_kept, n_removed, removed_post_ids)
     """
     raw_path = raw_csv_for(username)
     if not raw_path.exists():
@@ -392,39 +571,83 @@ def clean_channel_file(
 
     df_clean, df_removed = clean_dataframe(df, dry_run=dry_run)
 
+    if not df_clean.empty:
+        df_clean["text"] = df_clean["text"].apply(_sanitize_text)
+
     # Ручной просмотр пограничных случаев
     if with_review and not dry_run:
         df_clean = interactive_review(df_removed, df_clean)
 
     n_kept    = len(df_clean)
     n_removed = n_before - n_kept
+    removed_post_ids = set(df["post_id"]) - set(df_clean["post_id"])
 
     if not dry_run:
-        # Перезаписываем оригинал очищенными данными
-        df_clean.to_csv(raw_path, index=False, encoding="utf-8")
+        CLEANED_DIR.mkdir(parents=True, exist_ok=True)
+        REMOVED_DIR.mkdir(parents=True, exist_ok=True)
+        cleaned_path = cleaned_csv_for(username)
+        df_clean.to_csv(cleaned_path, index=False, encoding="utf-8")
+        log.info("  Очищенные → %s (%d строк)", cleaned_path.name, len(df_clean))
 
-        # Сохраняем удалённые для аудита
-        if not df_removed.empty:
-            removed_path = RAW_DIR / f"{username}_removed.csv"
-            df_removed.to_csv(removed_path, index=False, encoding="utf-8")
-            log.info("  Удалённые → %s (%d строк)", removed_path.name, len(df_removed))
+        removed_path = removed_csv_for(username)
+        df_removed.to_csv(removed_path, index=False, encoding="utf-8")
+        log.info("  Удалённые → %s (%d строк)", removed_path.name, len(df_removed))
 
     log.info(
         "  @%s: было %d → осталось %d | удалено %d (%.1f%%)",
         username, n_before, n_kept, n_removed,
         n_removed / n_before * 100 if n_before else 0,
     )
-    return n_kept, n_removed
+    return n_kept, n_removed, removed_post_ids
+
+
+def clean_comments_for_channel(
+    username: str,
+    removed_post_ids: set[int],
+    dry_run: bool = False,
+) -> tuple[int, int]:
+    """
+    Удаляет комментарии, относящиеся к удалённым постам.
+    Сохраняет очищенные комментарии в data/cleaned и удалённые в data/removed.
+    """
+    comments_path = comments_raw_for(username)
+    if not comments_path.exists():
+        return 0, 0
+
+    df = pd.read_csv(comments_path, encoding="utf-8")
+    if "post_id" not in df.columns:
+        return 0, 0
+
+    n_before = len(df)
+    if removed_post_ids:
+        mask_remove = df["post_id"].isin(removed_post_ids)
+    else:
+        mask_remove = pd.Series(False, index=df.index)
+
+    df_removed = df[mask_remove].copy()
+    df_clean = df[~mask_remove].copy()
+
+    if not dry_run:
+        CLEANED_DIR.mkdir(parents=True, exist_ok=True)
+        REMOVED_DIR.mkdir(parents=True, exist_ok=True)
+        cleaned_path = comments_cleaned_for(username)
+        df_clean.to_csv(cleaned_path, index=False, encoding="utf-8")
+        removed_path = comments_removed_for(username)
+        df_removed.to_csv(removed_path, index=False, encoding="utf-8")
+        log.info("  Комментарии удалённые → %s (%d строк)", removed_path.name, len(df_removed))
+        log.info("  Комментарии очищенные → %s (%d строк)", cleaned_path.name, len(df_clean))
+
+    return len(df_clean), len(df_removed)
 
 
 def rebuild_summary(channels: list[str]) -> None:
     """
-    Пересобирает сводный posts_raw.csv из очищенных файлов каналов.
+    Пересобирает сводный posts_cleaned.csv из очищенных файлов каналов.
     Вызывается после очистки всех каналов.
     """
     dfs = []
     for username in channels:
-        path = raw_csv_for(username)
+        path = cleaned_csv_for(username)
         if path.exists():
             dfs.append(pd.read_csv(path, encoding="utf-8"))
 
@@ -433,10 +656,32 @@ def rebuild_summary(channels: list[str]) -> None:
         return
 
     df_all = pd.concat(dfs, ignore_index=True)
-    df_all.to_csv(RAW_CSV, index=False, encoding="utf-8")
+    df_all.to_csv(CLEANED_CSV, index=False, encoding="utf-8")
     log.info(
         "Сводный файл пересобран → %s (%d постов из %d каналов)",
-        RAW_CSV, len(df_all), len(dfs),
+        CLEANED_CSV, len(df_all), len(dfs),
+    )
+
+
+def rebuild_comments_summary(channels: list[str]) -> None:
+    """
+    Пересобирает сводный comments_cleaned.csv из очищенных файлов комментариев.
+    """
+    dfs = []
+    for username in channels:
+        path = comments_cleaned_for(username)
+        if path.exists():
+            dfs.append(pd.read_csv(path, encoding="utf-8"))
+
+    if not dfs:
+        log.warning("Нет очищенных комментариев для сборки сводного.")
+        return
+
+    df_all = pd.concat(dfs, ignore_index=True)
+    df_all.to_csv(COMMENTS_CLEANED_CSV, index=False, encoding="utf-8")
+    log.info(
+        "Сводный файл комментариев пересобран → %s (%d строк из %d каналов)",
+        COMMENTS_CLEANED_CSV, len(df_all), len(dfs),
     )
 
 
@@ -447,7 +692,7 @@ def run_pipeline(
 ) -> None:
     """
     Запускает очистку для всех каналов (или указанных).
-    После очистки пересобирает сводный posts_raw.csv.
+    После очистки пересобирает сводный posts_cleaned.csv.
     """
     channels = [
         ch["username"] for ch in CHANNELS
@@ -463,13 +708,15 @@ def run_pipeline(
 
     total_kept    = 0
     total_removed = 0
+    removed_by_channel: dict[str, set[int]] = {}
 
     for username in channels:
-        kept, removed = clean_channel_file(
+        kept, removed, removed_post_ids = clean_channel_file(
             username, dry_run=dry_run, with_review=with_review
         )
         total_kept    += kept
         total_removed += removed
+        removed_by_channel[username] = removed_post_ids
 
     log.info(
         "\n%s\nИТОГО: оставлено %d | удалено %d | всего было %d\n%s",
@@ -480,6 +727,20 @@ def run_pipeline(
 
     if not dry_run:
         rebuild_summary(channels)
+
+        total_comments_removed = 0
+        total_comments_kept = 0
+        for username in channels:
+            kept_c, removed_c = clean_comments_for_channel(
+                username, removed_by_channel.get(username, set()), dry_run=dry_run
+            )
+            total_comments_kept += kept_c
+            total_comments_removed += removed_c
+        rebuild_comments_summary(channels)
+        log.info(
+            "Комментариев: оставлено %d | удалено %d",
+            total_comments_kept, total_comments_removed,
+        )
 
 
 def main() -> None:

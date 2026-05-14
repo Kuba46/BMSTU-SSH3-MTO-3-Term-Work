@@ -33,8 +33,6 @@ from config.settings import (
     COLOR_NEGATIVE,
     COLOR_NEUTRAL,
     COLOR_POSITIVE,
-    COLOR_PUBLIC,
-    COLOR_STATE,
     EVENTS,
     FIGURE_DPI,
     FIGURE_SIZE_SQUARE,
@@ -223,68 +221,6 @@ def plot_channel_heatmap(df_wide: pd.DataFrame, show: bool = False) -> Path:
     return _save(fig, "comments_fig_3_4_channel_heatmap", show)
 
 
-def plot_orientation_divergence(df: pd.DataFrame, show: bool = False) -> Path:
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=FIGURE_SIZE_WIDE, sharex=True)
-
-    df2 = df.copy()
-    df2["period"] = pd.to_datetime(df2["period"])
-    df2 = df2.sort_values("period")
-    periods = df2["period"].values
-
-    if df2["state_index"].notna().any():
-        ax1.plot(periods, df2["state_index"], color=COLOR_STATE,
-                 linewidth=1.8, label="Государственные каналы")
-    if df2["public_index"].notna().any():
-        ax1.plot(periods, df2["public_index"], color=COLOR_PUBLIC,
-                 linewidth=1.8, linestyle="--", label="Общественные каналы")
-    ax1.axhline(0, color="#bdc3c7", linewidth=0.8)
-    ax1.set_ylabel("Индекс тональности S(t)")
-    ax1.set_title("Сравнение тональности комментариев\n"
-                  "в государственных и общественных каналах")
-    ax1.legend()
-    ax1.set_ylim(-1.0, 1.0)
-    _add_event_markers(ax1, ymax=1.0)
-
-    valid_div = df2.dropna(subset=["divergence"])
-    if valid_div.empty:
-        ax2.axis("off")
-        ax2.text(
-            0.5, 0.5,
-            "Недостаточно данных для расчёта расхождения",
-            ha="center", va="center",
-            fontsize=10,
-        )
-    else:
-        div_periods = pd.to_datetime(valid_div["period"]).values
-        divergence = valid_div["divergence"].values
-        divergence_series = pd.Series(divergence, index=div_periods)
-        smooth = divergence_series.rolling(window=3, center=True, min_periods=1).mean().values
-
-        ax2.bar(div_periods, divergence,
-                width=5,
-                color=[COLOR_STATE if d >= 0 else COLOR_PUBLIC for d in divergence],
-                alpha=0.25)
-        ax2.plot(div_periods, smooth, color="#2c3e50", linewidth=1.8, label="Сглаженный тренд")
-        ax2.fill_between(div_periods, smooth, 0, where=(smooth >= 0),
-                         color=COLOR_STATE, alpha=0.12)
-        ax2.fill_between(div_periods, smooth, 0, where=(smooth < 0),
-                         color=COLOR_PUBLIC, alpha=0.12)
-        ax2.axhline(0, color="#bdc3c7", linewidth=0.8)
-        ax2.set_xlabel("Дата")
-        ax2.set_ylabel("Расхождение Δ S(t)")
-        ax2.set_title("Расхождение (гос. − общ.): >0 → гос. позитивнее")
-        _add_event_markers(ax2, alpha=0.35)
-        ax2.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
-        ax2.xaxis.set_major_locator(mdates.MonthLocator())
-        plt.xticks(rotation=30, ha="right")
-        ax2.legend(loc="upper left", fontsize=8, frameon=False)
-        max_abs = float(np.nanmax(np.abs(divergence))) if len(divergence) else 0.1
-        ax2.set_ylim(-max_abs * 1.25 if max_abs > 0 else -0.1, max_abs * 1.25 if max_abs > 0 else 0.1)
-    fig.subplots_adjust(hspace=0.03, bottom=0.1, left=0.08, right=0.96, top=0.92)
-
-    return _save(fig, "comments_fig_3_5_orientation_divergence", show)
-
-
 def plot_event_impact(df: pd.DataFrame, show: bool = False) -> Path:
     df2 = df.dropna(subset=["delta"]).copy()
     df2 = df2.sort_values("delta")
@@ -299,7 +235,7 @@ def plot_event_impact(df: pd.DataFrame, show: bool = False) -> Path:
             ha="center", va="center",
             fontsize=11,
         )
-        return _save(fig, "comments_fig_3_6_event_impact", show)
+        return _save(fig, "comments_fig_3_5_event_impact", show)
 
     if np.allclose(df2["delta"].values, 0):
         labels = df2["event_label"].astype(str)
@@ -317,7 +253,7 @@ def plot_event_impact(df: pd.DataFrame, show: bool = False) -> Path:
         ax.invert_yaxis()
         ax.grid(axis="x", alpha=0.3)
         fig.tight_layout()
-        return _save(fig, "comments_fig_3_6_event_impact", show)
+        return _save(fig, "comments_fig_3_5_event_impact", show)
 
     colors = [COLOR_POSITIVE if d >= 0 else COLOR_NEGATIVE
               for d in df2["delta"]]
@@ -333,7 +269,7 @@ def plot_event_impact(df: pd.DataFrame, show: bool = False) -> Path:
     ax.set_xlim(-max_abs * 1.15 if max_abs > 0 else -0.1, max_abs * 1.15 if max_abs > 0 else 0.1)
     fig.tight_layout()
 
-    return _save(fig, "comments_fig_3_6_event_impact", show)
+    return _save(fig, "comments_fig_3_5_event_impact", show)
 
 
 def save_all(show: bool = False) -> list[Path]:
@@ -362,10 +298,6 @@ def save_all(show: bool = False) -> list[Path]:
     if df_ch is not None:
         df_ch = df_ch.set_index(df_ch.columns[0])
         saved.append(plot_channel_heatmap(df_ch, show))
-
-    df_div = _try_load("orientation_divergence")
-    if df_div is not None:
-        saved.append(plot_orientation_divergence(df_div, show))
 
     df_impact = _try_load("event_impact")
     if df_impact is not None:

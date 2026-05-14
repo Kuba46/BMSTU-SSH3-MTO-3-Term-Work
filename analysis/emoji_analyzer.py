@@ -37,7 +37,7 @@ from config.settings import (
     EMOJI_SENTIMENT,
     EMOJI_LIKE_DISLIKE,
     PREDICTIONS_CSV,
-    RAW_CSV,
+    CLEANED_CSV,
     RESULTS_DIR,
 )
 
@@ -424,11 +424,11 @@ def run_pipeline() -> dict[str, pd.DataFrame]:
     Полный анализ эмодзи-реакций.
     Загружает predictions.csv (или raw), обогащает ESI, сохраняет результаты.
     """
-    source = PREDICTIONS_CSV if PREDICTIONS_CSV.exists() else RAW_CSV
+    source = PREDICTIONS_CSV if PREDICTIONS_CSV.exists() else CLEANED_CSV
     if not source.exists():
         raise FileNotFoundError(
             f"Файл данных не найден: {source}\n"
-            "Запустите сначала: python -m data.collector"
+            "Запустите сначала: python -m data.collector, затем python -m data.cleaner"
         )
 
     df = pd.read_csv(source, encoding="utf-8")

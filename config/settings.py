@@ -13,6 +13,8 @@ from datetime import date
 ROOT_DIR       = Path(__file__).resolve().parent.parent
 DATA_DIR       = ROOT_DIR / "data"
 RAW_DIR        = DATA_DIR / "raw"
+CLEANED_DIR    = DATA_DIR / "cleaned"
+REMOVED_DIR    = DATA_DIR / "removed"
 LABELED_DIR    = DATA_DIR / "labeled"
 PROCESSED_DIR  = DATA_DIR / "processed"
 MODELS_DIR     = ROOT_DIR / "models" / "saved"
@@ -21,7 +23,7 @@ FIGURES_DIR    = RESULTS_DIR / "figures"
 NOTEBOOKS_DIR  = ROOT_DIR / "notebooks"
 
 # Создаём папки при импорте (если не существуют)
-for _d in [RAW_DIR, LABELED_DIR, PROCESSED_DIR, MODELS_DIR, RESULTS_DIR, FIGURES_DIR]:
+for _d in [RAW_DIR, CLEANED_DIR, REMOVED_DIR, LABELED_DIR, PROCESSED_DIR, MODELS_DIR, RESULTS_DIR, FIGURES_DIR]:
     _d.mkdir(parents=True, exist_ok=True)
 
 
@@ -346,9 +348,26 @@ FIGURE_SIZE_SQUARE = (8, 8)
 def raw_csv_for(username: str):
     return RAW_DIR / f"{username}_raw.csv"
 
+def comments_raw_for(username: str):
+    return RAW_DIR / f"{username}_comments_raw.csv"
+
+def cleaned_csv_for(username: str):
+    return CLEANED_DIR / f"{username}_cleaned.csv"
+
+def comments_cleaned_for(username: str):
+    return CLEANED_DIR / f"{username}_comments_cleaned.csv"
+
+def removed_csv_for(username: str):
+    return REMOVED_DIR / f"{username}_removed.csv"
+
+def comments_removed_for(username: str):
+    return REMOVED_DIR / f"{username}_comments_removed.csv"
+
 # Сводный файл — объединение всех каналов (создаётся в dataset.py)
 RAW_CSV        = RAW_DIR       / "posts_raw.csv"
+CLEANED_CSV    = CLEANED_DIR   / "posts_cleaned.csv"
 COMMENTS_RAW_CSV = RAW_DIR       / "comments_raw.csv"
+COMMENTS_CLEANED_CSV = CLEANED_DIR / "comments_cleaned.csv"
 LABELED_CSV    = LABELED_DIR   / "posts_labeled.csv"
 PROCESSED_CSV  = PROCESSED_DIR / "posts_processed.csv"
 COMMENTS_PROCESSED_CSV = PROCESSED_DIR / "comments_processed.csv"

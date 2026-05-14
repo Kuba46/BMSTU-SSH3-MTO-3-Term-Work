@@ -143,7 +143,11 @@ def _show_post(idx: int, total: int, row: pd.Series) -> None:
 # Загружает уже существующую разметку (если есть), чтобы не размечать одни и те же посты повторно.
 def _load_existing_labels(path: Path) -> pd.DataFrame:
     if path.exists():
-        df = pd.read_csv(path, encoding="utf-8")
+        try:
+            df = pd.read_csv(path, encoding="utf-8")
+        except pd.errors.EmptyDataError:
+            log.warning("Файл разметки пуст: %s", path)
+            return pd.DataFrame(columns=["channel_username", "post_id", "sentiment"])
         log.info("Найдена существующая разметка: %d записей (%s)", len(df), path)
         return df
     return pd.DataFrame(columns=["channel_username", "post_id", "sentiment"])

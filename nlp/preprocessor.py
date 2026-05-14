@@ -12,8 +12,8 @@ nlp/preprocessor.py
     - Удаляет посты, которые стали пустыми после очистки
  
 Запуск:
-    python -m nlp.preprocessor          # читает RAW_CSV, пишет в PROCESSED_CSV
-    python -m nlp.preprocessor --input data/raw/comments_raw.csv --output data/processed/comments_processed.csv
+    python -m nlp.preprocessor          # читает CLEANED_CSV, пишет в PROCESSED_CSV
+    python -m nlp.preprocessor --input data/cleaned/comments_cleaned.csv --output data/processed/comments_processed.csv
     python -m nlp.preprocessor --demo   # показывает примеры очистки в терминале
 """
 
@@ -25,7 +25,7 @@ import unicodedata
 from pathlib import Path
 import pandas as pd
 
-from config.settings import RAW_CSV, PROCESSED_CSV
+from config.settings import CLEANED_CSV, PROCESSED_CSV
 
 
 log = logging.getLogger(__name__)
@@ -113,11 +113,11 @@ def preprocess_dataframe(df: pd.DataFrame, text_col: str = "text") -> pd.DataFra
 
 
 # Основная функция: читает сырой CSV, очищает текст, сохраняет результат в новый CSV.
-def run_pipeline(input_path=RAW_CSV, output_path=PROCESSED_CSV) -> pd.DataFrame:
+def run_pipeline(input_path=CLEANED_CSV, output_path=PROCESSED_CSV) -> pd.DataFrame:
     if not input_path.exists():
         raise FileNotFoundError(
             f"Входной файл не найден: {input_path}\n"
-            "Сначала запустите: python -m data.collector"
+            "Сначала запустите: python -m data.collector, затем python -m data.cleaner"
         )
 
     df = pd.read_csv(input_path, encoding="utf-8")
@@ -157,7 +157,7 @@ def main() -> None:
     parser.add_argument("--demo", action="store_true",
                         help="Показать примеры очистки без запуска пайплайна.")
     parser.add_argument("--input", type=str, default=None,
-                        help="Путь к входному CSV (по умолчанию RAW_CSV).")
+                        help="Путь к входному CSV (по умолчанию CLEANED_CSV).")
     parser.add_argument("--output", type=str, default=None,
                         help="Путь к выходному CSV (по умолчанию PROCESSED_CSV).")
     args = parser.parse_args()
@@ -165,7 +165,7 @@ def main() -> None:
     if args.demo:
         _demo()
     else:
-        input_path = RAW_CSV if args.input is None else Path(args.input)
+        input_path = CLEANED_CSV if args.input is None else Path(args.input)
         output_path = PROCESSED_CSV if args.output is None else Path(args.output)
         run_pipeline(input_path=input_path, output_path=output_path)
 

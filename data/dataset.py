@@ -5,7 +5,7 @@ data/dataset.py
  
 Функции:
     load_raw()         — загрузить сырые данные из CSV
-    load_comments()    — загрузить сырые комментарии
+    load_comments()    — загрузить очищенные комментарии
     validate()         — проверить корпус на дубликаты, пустые тексты и т.д.
     split_by_channel() — разбить DataFrame по каналам
     corpus_stats()     — вывести сводную статистику
@@ -23,22 +23,25 @@ import numpy as np
 
 from config.settings import (
     RAW_CSV,
-    COMMENTS_RAW_CSV,
+    CLEANED_CSV,
+    COMMENTS_CLEANED_CSV,
     LABELED_CSV,
     PROCESSED_CSV,
     CORPUS_START_DATE,
     CORPUS_END_DATE,
     CHANNELS,
+    CLEANED_DIR,
 )
 
 log = logging.getLogger(__name__)
 
 
 # Загружает сырой CSV с постами. Приводит типы: date → datetime, числовые колонки → int.
-def load_raw(path: Path = RAW_CSV) -> pd.DataFrame:
+def load_raw(path: Path = CLEANED_CSV) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"Файл не найден {path}.\n"
-                                f"Пожалуйста, сначала запустите сборщик: python -m data.collector.")
+                                f"Пожалуйста, сначала запустите сборщик: python -m data.collector,\n"
+                                f"а затем очистку: python -m data.cleaner.")
     
     df = pd.read_csv(path, encoding="utf-8")
     df["date"] = pd.to_datetime(df["date"], utc=True, errors="coerce")
@@ -53,7 +56,7 @@ def load_raw(path: Path = RAW_CSV) -> pd.DataFrame:
     return df
 
 
-# Загружает CSV с комментариями (если существует).
+# Загружает CSV с очищенными комментариями (если существует).
 def load_comments(path: Path | None = None) -> pd.DataFrame:
     if path is not None:
         if not path.exists():
@@ -61,9 +64,9 @@ def load_comments(path: Path | None = None) -> pd.DataFrame:
             return pd.DataFrame(columns=["post_id", "comment_id", "text", "date", "views"])
         df = pd.read_csv(path, encoding="utf-8")
     else:
-        comment_files = sorted(RAW_CSV.parent.glob("*_comments_raw.csv"))
+        comment_files = sorted(CLEANED_DIR.glob("*_comments_cleaned.csv"))
         if not comment_files:
-            log.warning("Файлы комментариев не найдены в %s", RAW_CSV.parent)
+            log.warning("Файлы комментариев не найдены в %s", CLEANED_DIR)
             return pd.DataFrame(columns=["post_id", "comment_id", "text", "date", "views"])
 
         frames = [pd.read_csv(file, encoding="utf-8") for file in comment_files]
@@ -95,9 +98,9 @@ def _comments_channel_map() -> dict[str, dict[str, str]]:
     }
 
 
-def build_comments_raw(output_path: Path = COMMENTS_RAW_CSV) -> pd.DataFrame:
+def build_comments_cleaned(output_path: Path = COMMENTS_CLEANED_CSV) -> pd.DataFrame:
     """
-    Объединяет все *_comments_raw.csv в единый comments_raw.csv.
+    Объединяет все *_comments_cleaned.csv в единый comments_cleaned.csv.
     Также добавляет channel_label и orientation из settings.CHANNELS.
     """
     df = load_comments()
@@ -201,7 +204,6 @@ def merge_labeled(df_raw: pd.DataFrame, labeled_path: Path = LABELED_CSV) -> pd.
     return df_merged.reset_index(drop=True)
 
 
-
 # Выводит сводную статистику корпуса в лог
 def corpus_stats(df: pd.DataFrame) -> None:
     if df.empty:
@@ -287,12 +289,12 @@ def main() -> None:
     parser.add_argument(
         "--comments",
         action="store_true",
-        help="Объединить комментарии в comments_raw.csv",
+        help="Объединить комментарии в comments_cleaned.csv",
     )
     args = parser.parse_args()
 
     if args.comments:
-        build_comments_raw()
+        build_comments_cleaned()
         return
 
     df_raw = load_raw()

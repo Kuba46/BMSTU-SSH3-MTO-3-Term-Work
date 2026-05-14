@@ -43,6 +43,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import matplotlib.dates as mdates
 import matplotlib.font_manager as font_manager
+from matplotlib.patches import Patch
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -60,9 +61,12 @@ from config.settings import (
     COLOR_PUBLIC,
     FIGURE_DPI,
     FIGURES_DIR,
-    RAW_CSV,
+    CLEANED_CSV,
     RESULTS_DIR,
 )
+
+from analysis.emoji_analyzer import analyze_corpus
+
 
 log = logging.getLogger(__name__)
 
@@ -188,7 +192,7 @@ def _load_corpus(source_path: Path | None = None) -> pd.DataFrame:
     candidates = [
         RESULTS_DIR / "emoji_corpus.csv",
         RESULTS_DIR / "predictions.csv",
-        RAW_CSV,
+        CLEANED_CSV,
     ]
     if source_path:
         candidates.insert(0, source_path)
@@ -237,10 +241,6 @@ def _add_event_markers(ax: plt.Axes, ymin: float = 0, ymax: float = 1) -> None:
                 rotation=90, fontsize=6.5, color="#e67e22",
                 alpha=0.85, va="top", ha="right")
  
- 
-# ══════════════════════════════════════════════════════════════════════════════
-# ГРАФИК 1: ТОП ЭМОДЗИ ПО КАНАЛУ
-# ══════════════════════════════════════════════════════════════════════════════
  
 def plot_emoji_frequency_by_channel(
     df: pd.DataFrame,
@@ -332,11 +332,9 @@ def plot_emoji_frequency_by_channel(
             f"{label}\n({orient_label} | {rtype_label})",
             fontsize=10, fontweight="bold",
         )
-        ax.set_xlabel("Число постов с данным эмодзи в топ-3")
+        ax.set_xlabel("Число постов с данным эмодзи в топе")
         ax.set_xlim(0, max(counts) * 1.18)
- 
-        # Мини-легенда категорий
-        from matplotlib.patches import Patch
+
         legend_handles = [
             Patch(color=COLOR_POSITIVE, label="позитивные"),
             Patch(color=COLOR_NEGATIVE, label="негативные"),
@@ -344,24 +342,18 @@ def plot_emoji_frequency_by_channel(
         ]
         ax.legend(handles=legend_handles, loc="lower right",
                   fontsize=7.5, framealpha=0.7)
- 
-    # Скрываем лишние подграфики
+
     for i in range(len(channel_counters), len(axes_flat)):
         axes_flat[i].set_visible(False)
- 
-    fig.suptitle(
-        "Рис. 2.11. Топ эмодзи-реакций по каналам выборки\n"
+
+    fig.suptitle("Топ эмодзи-реакций по каналам выборки\n"
         "(март–декабрь 2025 г., дело Долиной)",
         fontsize=13, fontweight="bold", y=1.01,
     )
     fig.tight_layout()
     return _save(fig, "fig_2_11_emoji_frequency_by_channel", show)
- 
- 
-# ══════════════════════════════════════════════════════════════════════════════
-# ГРАФИК 2: ТЕПЛОВАЯ КАРТА ЭМОДЗИ ПО МЕСЯЦАМ
-# ══════════════════════════════════════════════════════════════════════════════
- 
+
+
 def plot_emoji_monthly_heatmap(
     df: pd.DataFrame,
     channels: list[str] | None = None,
@@ -407,7 +399,10 @@ def plot_emoji_monthly_heatmap(
  
         # Группируем по месяцу
         ch_df = ch_df.dropna(subset=["date"]).copy()
-        ch_df["month"] = ch_df["date"].dt.to_period("M").astype(str)
+        dates = ch_df["date"]
+        if dates.dt.tz is not None:
+            dates = dates.dt.tz_convert(None)
+        ch_df["month"] = dates.dt.to_period("M").astype(str)
         months = sorted(ch_df["month"].unique())
  
         # Строим матрицу: строки — эмодзи, столбцы — месяцы
@@ -486,11 +481,7 @@ def plot_emoji_monthly_heatmap(
  
     return saved_paths
  
- 
-# ══════════════════════════════════════════════════════════════════════════════
-# ГРАФИК 3: STACKED BAR — ДОЛЯ КАТЕГОРИЙ ПО КАНАЛАМ
-# ══════════════════════════════════════════════════════════════════════════════
- 
+
 def plot_emoji_sentiment_distribution(
     df: pd.DataFrame,
     show: bool = False,
@@ -535,28 +526,25 @@ def plot_emoji_sentiment_distribution(
             "pct_neg":     n_neg / total * 100,
             "total_emojis": total,
         })
- 
+
     if not rows:
         log.warning("Нет данных для plot_emoji_sentiment_distribution.")
         return FIGURES_DIR / "no_data.txt"
- 
+
     df_plot = pd.DataFrame(rows).sort_values("pct_pos", ascending=True)
- 
     fig, ax = plt.subplots(figsize=(11, max(5, len(df_plot) * 0.75 + 1.5)))
  
-    y      = range(len(df_plot))
+    y = range(len(df_plot))
     height = 0.55
- 
+
     # Три сегмента stacked bar
-    bars_pos = ax.barh(list(y), df_plot["pct_pos"], height=height,
-                       color=COLOR_POSITIVE, alpha=0.85, label="Позитивные")
+    bars_pos = ax.barh(list(y), df_plot["pct_pos"], height=height, color=COLOR_POSITIVE, alpha=0.85, label="Позитивные")
     bars_neu = ax.barh(list(y), df_plot["pct_neu"], height=height,
-                       left=df_plot["pct_pos"],
-                       color=COLOR_NEUTRAL, alpha=0.75, label="Нейтральные")
+                       left=df_plot["pct_pos"], color=COLOR_NEUTRAL, alpha=0.75, label="Нейтральные")
     bars_neg = ax.barh(list(y), df_plot["pct_neg"], height=height,
                        left=df_plot["pct_pos"] + df_plot["pct_neu"],
                        color=COLOR_NEGATIVE, alpha=0.85, label="Негативные")
- 
+
     # Подписи значений (только если сегмент достаточно широкий)
     for bars, col in [(bars_pos, "pct_pos"), (bars_neg, "pct_neg")]:
         for bar, val in zip(bars, df_plot[col]):
@@ -564,27 +552,24 @@ def plot_emoji_sentiment_distribution(
                 ax.text(
                     bar.get_x() + bar.get_width() / 2,
                     bar.get_y() + bar.get_height() / 2,
-                    f"{val:.0f}%",
-                    ha="center", va="center",
+                    f"{val:.0f}%", ha="center", va="center",
                     fontsize=8, color="white", fontweight="bold",
                 )
- 
+
     # Метки каналов
     labels_y = []
     for _, row in df_plot.iterrows():
         orient_mark = "🏛" if row["orientation"] == "state" else "📢"
         rtype_mark  = " [👍👎]" if row["rtype"] == "like_dislike" else ""
         labels_y.append(f"{orient_mark} {row['label']}{rtype_mark}")
- 
+
     ax.set_yticks(list(y))
     ax.set_yticklabels(labels_y, fontsize=9.5)
     ax.set_xlabel("Доля эмодзи по категории, %")
     ax.set_xlim(0, 105)
     ax.xaxis.set_major_formatter(mticker.PercentFormatter())
     ax.axvline(50, color="#bdc3c7", linewidth=0.8, linestyle=":")
- 
-    ax.set_title(
-        "Рис. 2.12. Распределение эмодзи-реакций по категориям тональности\n"
+    ax.set_title("Распределение эмодзи-реакций по категориям тональности\n"
         "(по каналам выборки, март–декабрь 2025 г.)\n"
         "🏛 — государственные каналы  |  📢 — общественные каналы",
         fontsize=11, fontweight="bold",
@@ -592,12 +577,8 @@ def plot_emoji_sentiment_distribution(
     ax.legend(loc="lower right", fontsize=9, framealpha=0.8)
     fig.tight_layout()
     return _save(fig, "fig_2_12_emoji_sentiment_distribution", show)
- 
- 
-# ══════════════════════════════════════════════════════════════════════════════
-# ГРАФИК 4: ДИНАМИКА ESI ПО НЕДЕЛЯМ
-# ══════════════════════════════════════════════════════════════════════════════
- 
+
+
 def plot_esi_timeline(
     df: pd.DataFrame,
     show: bool = False,
@@ -609,9 +590,7 @@ def plot_esi_timeline(
  
     ESI = (n_pos_emojis − n_neg_emojis) / n_classified  ∈ [−1, +1]
     """
-    # Импортируем анализатор (если ещё не применён к df)
-    from analysis.emoji_analyzer import analyze_corpus, emoji_sentiment_score
- 
+
     if "esi" not in df.columns:
         df = analyze_corpus(df)
  
@@ -655,15 +634,14 @@ def plot_esi_timeline(
             weekly["mean_esi"] + weekly["sem_esi"],
             color=color, alpha=0.15,
         )
- 
+
     ax_top.axhline(0, color="#7f8c8d", linewidth=0.8, linestyle="-")
- 
+
     y_abs = max(df2["esi"].abs().max() * 1.2, 0.2)
     _add_event_markers(ax_top, ymin=-y_abs, ymax=y_abs)
     ax_top.set_ylim(-y_abs, y_abs)
     ax_top.set_ylabel("ESI (Emoji Sentiment Index)")
-    ax_top.set_title(
-        "Рис. 2.13. Динамика Emoji Sentiment Index (ESI) по неделям\n"
+    ax_top.set_title("Динамика Emoji Sentiment Index (ESI) по неделям\n"
         "(государственные vs общественные каналы, март–декабрь 2025 г.)",
         fontsize=11, fontweight="bold",
     )
@@ -680,7 +658,7 @@ def plot_esi_timeline(
         [-y_abs, -y_abs], [0, 0],
         color=COLOR_NEGATIVE, alpha=0.05,
     )
- 
+
     # ── Нижний: число постов с реакциями ─────────────────────────────────────
     weekly_all = (
         df2.set_index("date")
@@ -695,12 +673,12 @@ def plot_esi_timeline(
     _add_event_markers(ax_bot, ymax=weekly_all["n_posts"].max() * 1.1)
     ax_bot.set_ylabel("Постов с ESI")
     ax_bot.set_xlabel("Дата")
- 
+
     # Формат оси X
     for ax in [ax_top, ax_bot]:
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
         ax.xaxis.set_major_locator(mdates.MonthLocator())
- 
+
     plt.xticks(rotation=30, ha="right")
     fig.tight_layout()
     return _save(fig, "fig_2_13_esi_timeline", show)

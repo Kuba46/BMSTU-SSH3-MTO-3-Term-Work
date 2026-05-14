@@ -152,8 +152,7 @@ def run_kmeans(
 
     log.info("K-Means завершён. Распределение по кластерам:")
     for cl, cnt in zip(unique, counts):
-        log.info("  Кластер %d: %d документов (%.1f%%)", cl, cnt,
-                 cnt / len(labels) * 100)
+        log.info("  Кластер %d: %d документов (%.1f%%)", cl, cnt, cnt / len(labels) * 100)
     return km, labels
 
 
@@ -238,8 +237,8 @@ def run_dbscan(
     так как не зависит от длины документа.
 
     Labels:
-       ≥ 0  → номер кластера (плотная группа)
-      -1    → шум (документ не вошёл ни в один кластер)
+        ≥ 0 → номер кластера (плотная группа)
+        -1  → шум (документ не вошёл ни в один кластер)
 
     Returns:
         labels — массив меток длиной = числу документов
@@ -382,7 +381,7 @@ def run_pipeline(
 
     # K-Means
     km, km_labels = run_kmeans(matrix, n_clusters=n_clusters)
-    cl_labels     = label_clusters(km, vocab)
+    cl_labels = label_clusters(km, vocab)
     save_cluster_labels(km, vocab)
 
     # DBSCAN
