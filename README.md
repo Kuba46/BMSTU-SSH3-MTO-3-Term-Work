@@ -100,7 +100,6 @@ TELEGRAM_SESSION = "session_name"   # Имя файла сессии
 - `CORPUS_START_DATE`, `CORPUS_END_DATE` – временной интервал
 - `KEYWORDS` – фильтр релевантности
 
-
 ---
 
 ## Запуск пайплайна
@@ -126,6 +125,12 @@ python -m data.dataset
 Выполняется сборка сводного файла, проверка дубликатов, статистика корпуса.
 
 После очистки создаются файлы в `data/cleaned/` (raw‑файлы не изменяются). Далее используется очищенный корпус.
+
+Дополнительно `data.cleaner`:
+
+- убирает из текста очищенных постов символы `\n`;
+- удаляет `http/https` ссылки;
+- формирует отдельные файлы удалённых постов/комментариев в `data/removed/`.
 
 Если нужны комментарии отдельным файлом, объедините их:
 
@@ -158,6 +163,12 @@ python -m nlp.vectorizer
 ```
 
 Строится TF‑IDF матрица и словарь, сохраняются в `data/processed/`.
+
+Для комментариев можно сохранить отдельные артефакты с префиксом:
+
+```bash
+python -m nlp.vectorizer --input data/processed/comments_processed.csv --prefix comments_
+```
 
 ### Шаг 5. Обучение классификаторов тональности
 
@@ -197,6 +208,7 @@ python -m evaluation.metrics
 
 - `python -m evaluation.metrics --model logreg` или `--model svm`
 - `python -m evaluation.metrics --errors` для анализа ошибок
+- `python -m evaluation.metrics --confidence` для анализа уверенности
 
 ### Шаг 7. Автоматическая разметка всего корпуса
 
@@ -206,11 +218,26 @@ python -m models.predict
 
 Лучшая модель (по F1) применяется ко всем постам. Результат – `results/predictions.csv`.
 
+Для комментариев поддерживается более осторожная разметка через пороги:
+
+```bash
+python -m models.predict \
+  --input data/processed/comments_processed.csv \
+  --output results/comments_predictions.csv \
+  --neutral-threshold 0.47 \
+  --margin-threshold 0.07
+```
+
+Это полезно, если модель слишком часто относит комментарии к `positive`/`negative` и почти не выбирает `neutral`.
+Рекомендуемые стартовые значения: `0.47` и `0.07`.
+
 Для комментариев:
 
 ```bash
 python -m models.predict --input data/processed/comments_processed.csv --output results/comments_predictions.csv
 ```
+
+Если нужна базовая (без порогов) разметка — используйте команду выше.
 
 ### Шаг 8. Агрегация, emoji-анализ и событийный анализ
 
@@ -284,8 +311,28 @@ export EMOJI_FONT_PATH="/Library/Fonts/NotoEmoji-Regular.ttf"
 
 ### Шаг 11. Запуск всего пайплайна (опционально)
 
-Если реализован `main.py`, можно выполнить:
+Базовый запуск:
 
 ```bash
 python main.py
+```
+
+Полный прогон с комментариями:
+
+```bash
+python main.py --with-comments
+```
+
+Частичные прогоны:
+
+```bash
+python main.py --no-collect
+python main.py --with-comments --no-train --no-eval
+python main.py --no-visuals --no-analysis
+```
+
+Все доступные флаги:
+
+```bash
+python main.py --help
 ```

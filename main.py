@@ -72,6 +72,9 @@ def main() -> None:
 	args = parser.parse_args()
 
 	try:
+		if not args.no_collect:
+			_run_module("data.collector")
+
 		if not args.no_clean:
 			_run_module("data.cleaner")
 

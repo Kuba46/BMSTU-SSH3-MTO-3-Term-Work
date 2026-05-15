@@ -91,13 +91,22 @@ def _load_model(model_name: str):
 
 # ── Предсказание ──────────────────────────────────────────────────────────────
 
-def predict(df: pd.DataFrame, model_name: str | None = None) -> pd.DataFrame:
+def predict(
+    df: pd.DataFrame,
+    model_name: str | None = None,
+    neutral_threshold: float | None = None,
+    margin_threshold: float | None = None,
+) -> pd.DataFrame:
     """
     Размечает тональность всего DataFrame.
 
     Args:
-        df:         DataFrame с колонкой text_lemma
-        model_name: 'logreg' | 'svm' | None (автовыбор)
+        df:                 DataFrame с колонкой text_lemma
+        model_name:         'logreg' | 'svm' | None (автовыбор)
+        neutral_threshold:  если задан, переводит в neutral записи с
+                            sentiment_confidence < threshold
+        margin_threshold:   если задан, переводит в neutral записи с
+                            |proba_positive - proba_negative| < threshold
 
     Returns:
         df с добавленными колонками:
@@ -160,6 +169,27 @@ def predict(df: pd.DataFrame, model_name: str | None = None) -> pd.DataFrame:
     df_valid["proba_negative"]       = _proba_for_class(-1)
     df_valid["sentiment_confidence"] = proba.max(axis=1)
     df_valid["model_used"]           = model_name
+
+    neutral_mask = np.zeros(len(df_valid), dtype=bool)
+    if neutral_threshold is not None:
+        neutral_mask |= df_valid["sentiment_confidence"].to_numpy() < float(neutral_threshold)
+
+    if margin_threshold is not None:
+        margin = np.abs(
+            df_valid["proba_positive"].to_numpy() -
+            df_valid["proba_negative"].to_numpy()
+        )
+        neutral_mask |= margin < float(margin_threshold)
+
+    if neutral_mask.any():
+        df_valid.loc[neutral_mask, "sentiment_pred"] = 0
+        df_valid.loc[neutral_mask, "sentiment_label"] = SENTIMENT_LABEL_NAMES[0]
+        log.info(
+            "Применена нейтрализация порогами: neutralized=%d (confidence<%s | margin<%s)",
+            int(neutral_mask.sum()),
+            neutral_threshold,
+            margin_threshold,
+        )
 
     # Объединяем обратно
     result = pd.concat([df_valid, df_empty], ignore_index=True)
@@ -242,6 +272,8 @@ def run_pipeline(
     model_name: str | None = None,
     input_path=PROCESSED_CSV,
     output_path=PREDICTIONS_CSV,
+    neutral_threshold: float | None = None,
+    margin_threshold: float | None = None,
 ) -> pd.DataFrame:
     """
     Загружает обработанный корпус → размечает → сохраняет PREDICTIONS_CSV.
@@ -256,7 +288,12 @@ def run_pipeline(
     df["text_lemma"] = df["text_lemma"].fillna("").astype(str)
     log.info("Загружено документов для разметки: %d", len(df))
 
-    df_pred = predict(df, model_name=model_name)
+    df_pred = predict(
+        df,
+        model_name=model_name,
+        neutral_threshold=neutral_threshold,
+        margin_threshold=margin_threshold,
+    )
     df_pred.to_csv(output_path, index=False, encoding="utf-8")
     log.info("Предсказания сохранены → %s  (%d строк)", output_path, len(df_pred))
 
@@ -298,10 +335,28 @@ def main() -> None:
         default=None,
         help="Путь для сохранения предсказаний (по умолчанию PREDICTIONS_CSV).",
     )
+    parser.add_argument(
+        "--neutral-threshold",
+        type=float,
+        default=None,
+        help="Порог уверенности: если confidence ниже, запись помечается как neutral.",
+    )
+    parser.add_argument(
+        "--margin-threshold",
+        type=float,
+        default=None,
+        help="Порог |P(pos)-P(neg)|: если ниже, запись помечается как neutral.",
+    )
     args = parser.parse_args()
     input_path = PROCESSED_CSV if args.input is None else Path(args.input)
     output_path = PREDICTIONS_CSV if args.output is None else Path(args.output)
-    run_pipeline(model_name=args.model, input_path=input_path, output_path=output_path)
+    run_pipeline(
+        model_name=args.model,
+        input_path=input_path,
+        output_path=output_path,
+        neutral_threshold=args.neutral_threshold,
+        margin_threshold=args.margin_threshold,
+    )
 
 
 if __name__ == "__main__":

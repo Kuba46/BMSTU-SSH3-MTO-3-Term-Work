@@ -44,6 +44,8 @@ import matplotlib.ticker as mticker
 import matplotlib.dates as mdates
 import matplotlib.font_manager as font_manager
 from matplotlib.patches import Patch
+from matplotlib.colors import LinearSegmentedColormap
+
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -420,13 +422,8 @@ def plot_emoji_monthly_heatmap(
                         matrix.at[em, month] += 1
             matrix[month] = matrix[month] / n_month * 100  # → %
  
-        # Аннотации с эмодзи-категорией
-        emoji_dict = _emoji_dict_for(username)
-        row_labels = []
-        for em in top_emojis:
-            cat = emoji_dict.get(em, "unknown")
-            marker = {"positive": "✚", "negative": "✖", "neutral": "●"}.get(cat, "?")
-            row_labels.append(f"{em}  {marker}")
+        # Метки эмодзи без категорий
+        row_labels = [em for em in top_emojis]
  
         # ── Рисуем ────────────────────────────────────────────────────────────
         fig_h = max(4, len(top_emojis) * 0.55 + 2)
@@ -436,7 +433,6 @@ def plot_emoji_monthly_heatmap(
         # Кастомный колормап: белый → цвет ориентации канала
         orient = ch_meta.get("orientation", "public")
         base_color = COLOR_STATE if orient == "state" else COLOR_PUBLIC
-        from matplotlib.colors import LinearSegmentedColormap
         cmap = LinearSegmentedColormap.from_list(
             "custom", ["#ffffff", base_color], N=256
         )
@@ -458,22 +454,18 @@ def plot_emoji_monthly_heatmap(
         orient_label = "государственный" if orient == "state" else "общественный"
         rtype_label  = "только 👍/👎" if rtype == "like_dislike" else "полный набор реакций"
         ax.set_title(
-            f"Рис. — Динамика эмодзи-реакций по месяцам\n"
+            f"Динамика эмодзи-реакций по месяцам\n"
             f"{label}  ({orient_label} | {rtype_label})\n"
             f"март–декабрь 2025 г.",
             fontsize=11, fontweight="bold",
         )
         ax.set_xlabel("Месяц")
-        ax.set_ylabel("Эмодзи  (✚ позит. | ✖ негат. | ● нейтр.)")
+        ax.set_ylabel("Эмодзи")
  
         plt.xticks(rotation=30, ha="right", fontsize=9)
         plt.yticks(rotation=0, fontsize=12)
- 
-        # Подпись источника
-        fig.text(0.01, -0.02,
-                 "Источник: составлено автором по данным Telegram API.",
-                 fontsize=7.5, color="#7f8c8d")
- 
+
+        fig.subplots_adjust(left=0.18)
         fig.tight_layout()
         fname = f"fig_emoji_monthly_{username}"
         path  = _save(fig, fname, show)
