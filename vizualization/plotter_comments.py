@@ -125,7 +125,6 @@ def plot_activity_timeline(df: pd.DataFrame, show: bool = False) -> Path:
     plt.xticks(rotation=30, ha="right")
     ax.legend()
     fig.tight_layout()
-
     return _save(fig, "comments_fig_3_1_activity_timeline", show)
 
 
@@ -157,7 +156,6 @@ def plot_sentiment_timeline(df: pd.DataFrame, show: bool = False) -> Path:
     plt.xticks(rotation=30, ha="right")
     ax.legend(loc="upper left")
     fig.tight_layout()
-
     return _save(fig, "comments_fig_3_2_sentiment_timeline", show)
 
 

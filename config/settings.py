@@ -196,6 +196,7 @@ CORPUS_END_DATE = date(2025, 12, 31)
 # Регистронезависимый поиск (применяется к lower-case тексту).
 KEYWORDS = [
     "долина",
+    "лариса",
     "лурье",
     "схема долиной",
     "добросовестный покупатель",
@@ -213,7 +214,7 @@ KEYWORDS = [
 # Минимальная длина токена (символов) после лемматизации
 MIN_TOKEN_LENGTH = 3
 
-# Разрешённые части речи (pymorphy2 POS-теги).
+# Разрешённые части речи (pymorphy3 POS-теги).
 # Оставляем существительные, прилагательные, глаголы, наречия.
 ALLOWED_POS = {"NOUN", "ADJF", "ADJS", "VERB", "INFN", "ADVB"}
 
@@ -259,24 +260,6 @@ SVM_PARAMS = {
 TEST_SIZE    = 0.20
 RANDOM_STATE = 42
 
-# ── Кластеризация ─────────────────────────────────────────────────────────────
-# K-Means: диапазон k для метода «локтя»
-KMEANS_K_RANGE = range(2, 12)
-
-# K-Means: итоговое число кластеров (устанавливается после анализа «локтя»)
-KMEANS_N_CLUSTERS = 6
-
-# DBSCAN: параметры для поиска всплесков активности
-DBSCAN_EPS     = 0.5   # радиус окрестности в пространстве TF-IDF
-DBSCAN_MIN_SAMPLES = 5  # минимум соседей для формирования ядра
-
-# t-SNE: параметры визуализации кластеров
-TSNE_PARAMS = {
-    "n_components": 2,
-    "perplexity":   30,
-    "random_state": 42,
-    "max_iter":     1_000,
-}
 
 # ── Ивент-анализ ──────────────────────────────────────────────────────────────
 # Ключевые события дела Долиной с датами и описаниями.
@@ -379,7 +362,6 @@ COMMENTS_SVM_MODEL = MODELS_DIR / "comments_svm_sentiment.pkl"
 PREDICTIONS_CSV = RESULTS_DIR  / "predictions.csv"
 COMMENTS_PREDICTIONS_CSV = RESULTS_DIR / "comments_predictions.csv"
 PREDICTIONS_ALL_CSV = RESULTS_DIR / "predictions_all.csv"
-CLUSTERS_CSV   = RESULTS_DIR   / "clusters.csv"
 METRICS_JSON   = RESULTS_DIR   / "metrics.json"
 COMMENTS_METRICS_JSON = RESULTS_DIR / "comments_metrics.json"
 
@@ -412,12 +394,9 @@ EMOJI_SENTIMENT: dict[str, str] = {
     "🥰": "positive",   # улыбка с сердечками — теплота
     "💯": "positive",   # сто баллов — полное согласие/одобрение
     "🤩": "positive",   # звёздные глаза — восторг
-    "😊": "positive",   # улыбка — мягкое одобрение
     "✅": "positive",   # галочка — согласие/подтверждение
     "🙏": "positive",   # молитва/благодарность — одобрение решения
-    "💪": "positive",   # бицепс — сила, поддержка
     "⚡": "positive",   # молния — «мощно», экспрессия одобрения
-    "🕊️": "positive",  # голубь — справедливость, мир (в контексте суда)
 
     # ── Негативные ────────────────────────────────────────────────────────────
     "👎": "negative",   # дизлайк — базовое неодобрение
@@ -439,6 +418,7 @@ EMOJI_SENTIMENT: dict[str, str] = {
     "👀": "neutral",    # глаза — «смотрю», интерес без оценки
     "🤔": "neutral",    # раздумье — сомнение, неоднозначность
     "🤯": "neutral",    # взрыв мозга — шок (без чёткой валентности)
+    "🕊️": "neutral",    # голубь — справедливость, мир (в контексте суда)
 }
 
 # Специальный случай: РИА Новости — только лайк/дизлайк

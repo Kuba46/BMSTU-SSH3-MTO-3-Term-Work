@@ -30,6 +30,9 @@ from config.settings import (
 
 log = logging.getLogger(__name__)
 
+COMMENTS_NEUTRAL_THRESHOLD = 0.47
+COMMENTS_MARGIN_THRESHOLD = 0.07
+
 
 def _run_module(module: str, args: list[str] | None = None) -> None:
 	cmd = [sys.executable, "-m", module]
@@ -68,6 +71,18 @@ def main() -> None:
 	parser.add_argument("--no-predict", action="store_true", help="пропустить авторазметку")
 	parser.add_argument("--no-analysis", action="store_true", help="пропустить анализ")
 	parser.add_argument("--no-visuals", action="store_true", help="пропустить визуализации")
+	parser.add_argument(
+		"--comments-neutral-threshold",
+		type=float,
+		default=COMMENTS_NEUTRAL_THRESHOLD,
+		help="порог уверенности для нейтрализации комментариев (по умолчанию 0.47)",
+	)
+	parser.add_argument(
+		"--comments-margin-threshold",
+		type=float,
+		default=COMMENTS_MARGIN_THRESHOLD,
+		help="порог разницы P(pos)-P(neg) для нейтрализации комментариев (по умолчанию 0.07)",
+	)
 
 	args = parser.parse_args()
 
@@ -126,7 +141,12 @@ def main() -> None:
 			if args.with_comments and _exists(COMMENTS_PROCESSED_CSV):
 				_run_module(
 					"models.predict",
-					["--input", str(COMMENTS_PROCESSED_CSV), "--output", str(COMMENTS_PREDICTIONS_CSV)],
+					[
+						"--input", str(COMMENTS_PROCESSED_CSV),
+						"--output", str(COMMENTS_PREDICTIONS_CSV),
+						"--neutral-threshold", str(args.comments_neutral_threshold),
+						"--margin-threshold", str(args.comments_margin_threshold),
+					],
 				)
 
 		if not args.no_analysis:

@@ -40,7 +40,7 @@ try:
     _MORPH_LIB = "pymorphy3"
 except ImportError:
     try:
-        import pymorphy3 as _pymorphy  # type: ignore
+        import pymorphy3 as _pymorphy
         _MORPH_LIB = "pymorphy3"
     except ImportError:
         raise ImportError(
@@ -49,8 +49,6 @@ except ImportError:
             "  pip install setuptools pymorphy2-dicts-ru   (рекомендуется)\n"
             "  pip install pymorphy3                       (Python 3.12+)"
         )
-
-# nltk не используется — стоп-слова берём из stopwords_ru.txt
 
 from config.settings import (
     PROCESSED_CSV,
@@ -269,7 +267,6 @@ def _demo() -> None:
         "верховный суд отменил несправедливое решение хамовнического суда",
         "общественное мнение сформировалось в телеграм-каналах за несколько месяцев",
         "логистическая регрессия классификация тональности постов каналов",
-        "анализ кластеризация kmeans dbscan визуализация результаты",
     ]
     print("\n── ДЕМО: лемматизация ───────────────────────────────────────────")
     for i, text in enumerate(examples, 1):

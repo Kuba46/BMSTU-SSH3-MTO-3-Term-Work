@@ -9,8 +9,6 @@ vizualization/plotter_posts.py
     plot_sentiment_index()       — взвешенный индекс S(t) с маркерами событий
     plot_channel_heatmap()       — тепловая карта тональности по каналам × месяцы
     plot_orientation_divergence()— расхождение гос. vs общ. каналов
-    plot_cluster_tsne()          — t-SNE проекция кластеров
-    plot_top_terms()             — топ-слова для каждого кластера (bar chart)
     plot_confusion_matrix()      — матрица ошибок классификатора
     plot_model_comparison()      — сравнение LogReg vs SVM
     plot_event_impact()          — δ тональности вокруг каждого события
@@ -48,7 +46,6 @@ from config.settings import (
     FIGURES_DIR,
     SENTIMENT_LABEL_NAMES,
     RESULTS_DIR,
-    CLUSTERS_CSV,
     METRICS_JSON,
 )
 
@@ -124,8 +121,6 @@ def plot_activity_timeline(df: pd.DataFrame, show: bool = False) -> Path:
            width=5, color="#3498db", alpha=0.75, label="Число постов")
     ax.set_xlabel("Дата")
     ax.set_ylabel("Число публикаций")
-    ax.set_title("Динамика публикационной активности в Telegram-каналах\n"
-                 "(март–декабрь 2025 г., недельная агрегация)")
 
     y_max = df2["n_posts"].max() * 1.15
     _add_event_markers(ax, ymax=y_max)
@@ -135,7 +130,6 @@ def plot_activity_timeline(df: pd.DataFrame, show: bool = False) -> Path:
     plt.xticks(rotation=30, ha="right")
     ax.legend()
     fig.tight_layout()
-
     return _save(fig, "fig_2_1_activity_timeline", show)
 
 
@@ -160,14 +154,11 @@ def plot_sentiment_timeline(df: pd.DataFrame, show: bool = False) -> Path:
     ax.set_xlabel("Дата")
     ax.set_ylabel("Доля публикаций, %")
     ax.set_ylim(0, 100)
-    ax.set_title("Динамика тональности публикаций в Telegram-каналах\n"
-                 "(март–декабрь 2025 г., недельная агрегация)")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     plt.xticks(rotation=30, ha="right")
     ax.legend(loc="upper left")
     fig.tight_layout()
-
     return _save(fig, "fig_2_2_sentiment_timeline", show)
 
 
@@ -195,14 +186,11 @@ def plot_sentiment_index(df: pd.DataFrame, show: bool = False) -> Path:
     ax.set_ylim(-y_abs, y_abs)
     ax.set_xlabel("Дата")
     ax.set_ylabel("Взвешенный индекс тональности S(t)")
-    ax.set_title("Взвешенный индекс тональности S(t)\n"
-                 "(с учётом охвата публикаций; диапазон [-1, +1])")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     plt.xticks(rotation=30, ha="right")
     ax.legend(loc="upper left")
     fig.tight_layout()
-
     return _save(fig, "fig_2_3_sentiment_index", show)
 
 
@@ -222,14 +210,11 @@ def plot_channel_heatmap(df_wide: pd.DataFrame, show: bool = False) -> Path:
         annot_kws={"fontsize": 8},
         cbar_kws={"label": "Индекс тональности S"},
     )
-    ax.set_title("Тепловая карта индекса тональности\n"
-                 "по каналам и месяцам (март–декабрь 2025 г.)")
     ax.set_xlabel("Период (месяц)")
     ax.set_ylabel("Telegram-канал")
     plt.xticks(rotation=30, ha="right")
     plt.yticks(rotation=0)
     fig.subplots_adjust(bottom=0.18, left=0.22, right=0.96, top=0.92)
-
     return _save(fig, "fig_2_4_channel_heatmap", show)
 
 
@@ -249,8 +234,6 @@ def plot_orientation_divergence(df: pd.DataFrame, show: bool = False) -> Path:
                  linewidth=1.8, linestyle="--", label="Общественные каналы")
     ax1.axhline(0, color="#bdc3c7", linewidth=0.8)
     ax1.set_ylabel("Индекс тональности S(t)")
-    ax1.set_title("Сравнение тональности государственных\n"
-                  "и общественных Telegram-каналов")
     ax1.legend()
     ax1.set_ylim(-1.0, 1.0)
     _add_event_markers(ax1, ymax=1.0)
@@ -296,89 +279,6 @@ def plot_orientation_divergence(df: pd.DataFrame, show: bool = False) -> Path:
 
     return _save(fig, "fig_2_5_orientation_divergence", show)
 
-
-def plot_cluster_tsne(df: pd.DataFrame, show: bool = False) -> Path:
-    if "tsne_x" not in df.columns or "tsne_y" not in df.columns:
-        log.warning("t-SNE координаты отсутствуют — график пропущен.")
-        return FIGURES_DIR / "fig_2_6_tsne_skipped.txt"
-
-    fig, ax = plt.subplots(figsize=FIGURE_SIZE_SQUARE)
-
-    clusters = sorted(df["kmeans_cluster"].unique())
-    palette = sns.color_palette("tab10", len(clusters))
-
-    for cl, color in zip(clusters, palette):
-        sub = df[df["kmeans_cluster"] == cl]
-        lbl = sub["kmeans_label"].iloc[0][:40] if len(sub) else str(cl)
-        ax.scatter(
-            sub["tsne_x"], sub["tsne_y"],
-            s=15, alpha=0.55, color=color,
-            label=f"К{cl}: {lbl}",
-        )
-
-    ax.set_title("t-SNE проекция тематических кластеров\n"
-                 "(K-Means, TF-IDF пространство)")
-    ax.set_xlabel("t-SNE dim 1")
-    ax.set_ylabel("t-SNE dim 2")
-    ax.legend(loc="upper right", fontsize=7, markerscale=2)
-    ax.set_xticks([])
-    ax.set_yticks([])
-    fig.tight_layout()
-
-    return _save(fig, "fig_2_6_cluster_tsne", show)
-
-
-def plot_top_terms(cluster_labels: dict[int, list[str]], km_model=None, show: bool = False) -> Path:
-    n_clusters = len(cluster_labels)
-    cols = min(3, n_clusters)
-    rows = (n_clusters + cols - 1) // cols
-
-    fig, axes = plt.subplots(rows, cols, figsize=(cols * 5, rows * 4))
-    axes = np.array(axes).flatten()
-
-    palette = sns.color_palette("tab10", n_clusters)
-
-    def _coerce_terms(raw_items: list) -> pd.DataFrame:
-        if raw_items and isinstance(raw_items[0], dict):
-            frame = pd.DataFrame(raw_items)
-            if {"term", "weight"}.issubset(frame.columns):
-                return frame[["term", "weight"]].copy()
-
-        terms = list(raw_items)
-        if not terms:
-            return pd.DataFrame(columns=["term", "weight"])
-        weights = np.linspace(len(terms), 1, len(terms), dtype=float)
-        return pd.DataFrame({"term": terms, "weight": weights})
-
-    for cl_id, words in sorted(cluster_labels.items()):
-        ax = axes[cl_id]
-        frame = _coerce_terms(words).head(10).sort_values("weight", ascending=True)
-        y_pos = np.arange(len(frame))
-
-        ax.barh(
-            y_pos,
-            frame["weight"],
-            color=palette[cl_id],
-            alpha=0.80,
-        )
-        ax.set_yticks(list(y_pos))
-        ax.set_yticklabels(frame["term"].tolist(), fontsize=9)
-        ax.invert_yaxis()
-        ax.set_xlabel("Вес центроида")
-        ax.set_title(f"Кластер {cl_id}", fontsize=10, fontweight="bold")
-        ax.xaxis.set_major_formatter(mticker.FormatStrFormatter("%.3f"))
-        ax.margins(x=0.05)
-
-    for i in range(n_clusters, len(axes)):
-        axes[i].set_visible(False)
-
-    fig.suptitle("Топ-слова тематических кластеров K-Means",
-                 fontsize=13, fontweight="bold", y=1.01)
-    fig.tight_layout()
-
-    return _save(fig, "fig_2_7_top_terms", show)
-
-
 def plot_confusion_matrix(
     cm: list[list[int]],
     model_name: str = "logreg",
@@ -423,11 +323,8 @@ def plot_confusion_matrix(
     )
     ax.set_xlabel("Предсказанная метка")
     ax.set_ylabel("Истинная метка")
-    model_display = "LogisticRegression" if model_name == "logreg" else "SVM (LinearSVC)"
-    ax.set_title(f"Матрица ошибок классификатора\n({model_display}, доли по строкам)")
     fig.tight_layout()
-
-    return _save(fig, f"fig_2_8_confusion_matrix_{model_name}", show)
+    return _save(fig, f"fig_2_6_confusion_matrix_{model_name}", show)
 
 
 def plot_model_comparison(compare_df: pd.DataFrame, show: bool = False) -> Path:
@@ -453,7 +350,6 @@ def plot_model_comparison(compare_df: pd.DataFrame, show: bool = False) -> Path:
     width = 0.35
 
     fig, ax = plt.subplots(figsize=(10, 5))
-
     lr_vals = pd.to_numeric(sub[logreg_col], errors="coerce").values
     svm_vals = pd.to_numeric(sub[svm_col], errors="coerce").values
 
@@ -466,14 +362,11 @@ def plot_model_comparison(compare_df: pd.DataFrame, show: bool = False) -> Path:
     ax.set_xticklabels(sub[metric_col].values, rotation=15, ha="right")
     ax.set_ylim(0, max(1.1, float(np.nanmax([lr_vals, svm_vals])) * 1.15))
     ax.set_ylabel("Значение метрики")
-    ax.set_title("Сравнение качества классификаторов тональности\n"
-                 "(LogisticRegression vs SVM, тестовая выборка)")
     ax.legend()
     ax.bar_label(bars1, fmt="%.3f", fontsize=8, padding=2)
     ax.bar_label(bars2, fmt="%.3f", fontsize=8, padding=2)
     fig.tight_layout()
-
-    return _save(fig, "fig_2_9_model_comparison", show)
+    return _save(fig, "fig_2_7_model_comparison", show)
 
 
 def plot_event_impact(df: pd.DataFrame, show: bool = False) -> Path:
@@ -490,7 +383,7 @@ def plot_event_impact(df: pd.DataFrame, show: bool = False) -> Path:
             ha="center", va="center",
             fontsize=11,
         )
-        return _save(fig, "fig_2_10_event_impact", show)
+        return _save(fig, "fig_2_8_event_impact", show)
 
     if np.allclose(df2["delta"].values, 0):
         labels = df2["event_label"].astype(str)
@@ -508,7 +401,7 @@ def plot_event_impact(df: pd.DataFrame, show: bool = False) -> Path:
         ax.invert_yaxis()
         ax.grid(axis="x", alpha=0.3)
         fig.tight_layout()
-        return _save(fig, "fig_2_10_event_impact", show)
+        return _save(fig, "fig_2_8_event_impact", show)
 
     colors = [COLOR_POSITIVE if d >= 0 else COLOR_NEGATIVE
               for d in df2["delta"]]
@@ -517,14 +410,11 @@ def plot_event_impact(df: pd.DataFrame, show: bool = False) -> Path:
     ax.axvline(0, color="#7f8c8d", linewidth=0.8)
     ax.bar_label(bars, fmt="%+.3f", fontsize=9, padding=3)
     ax.set_xlabel("Δ индекса тональности (после − до события)")
-    ax.set_title("Изменение тональности дискуссии\n"
-                 "в ±7 дней вокруг ключевых событий дела Долиной")
     ax.invert_yaxis()
     max_abs = float(np.nanmax(np.abs(df2["delta"])))
     ax.set_xlim(-max_abs * 1.15 if max_abs > 0 else -0.1, max_abs * 1.15 if max_abs > 0 else 0.1)
     fig.tight_layout()
-
-    return _save(fig, "fig_2_10_event_impact", show)
+    return _save(fig, "fig_2_8_event_impact", show)
 
 
 def save_all(show: bool = False) -> list[Path]:
@@ -558,16 +448,6 @@ def save_all(show: bool = False) -> list[Path]:
     if df_div is not None:
         saved.append(plot_orientation_divergence(df_div, show))
 
-    if CLUSTERS_CSV.exists():
-        df_cl = pd.read_csv(CLUSTERS_CSV)
-        saved.append(plot_cluster_tsne(df_cl, show))
-
-        cluster_labels_path = RESULTS_DIR / "cluster_labels.json"
-        if cluster_labels_path.exists():
-            with open(cluster_labels_path, encoding="utf-8") as f:
-                cl_labels = {int(k): v for k, v in json.load(f).items()}
-            saved.append(plot_top_terms(cl_labels, show=show))
-
     if METRICS_JSON.exists():
         with open(METRICS_JSON, encoding="utf-8") as f:
             metrics_data = json.load(f)
@@ -587,7 +467,6 @@ def save_all(show: bool = False) -> list[Path]:
     df_impact = _try_load("event_impact")
     if df_impact is not None:
         saved.append(plot_event_impact(df_impact, show))
-
     log.info("Всего графиков сохранено: %d", len(saved))
     return saved
 

@@ -90,7 +90,7 @@ def _cleanup_stale_session_journal() -> None:
     session_journal.unlink(missing_ok=True)
     log.warning("Удалён stale session journal: %s", session_journal)
 
-# ── Фильтрация релевантности ──────────────────────────────────────────────────
+# Фильтрация релевантности
 
 _KEYWORDS_SPECIFIC = {
     "долин", "лурье",

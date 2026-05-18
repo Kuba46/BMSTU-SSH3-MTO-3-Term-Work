@@ -22,7 +22,6 @@ import pandas as pd
 import numpy as np
 
 from config.settings import (
-    RAW_CSV,
     CLEANED_CSV,
     COMMENTS_CLEANED_CSV,
     LABELED_CSV,

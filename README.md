@@ -6,7 +6,7 @@
 
 Проект реализует полный цикл автоматизированного исследования:
 сбор сообщений из Telegram, лингвистическая предобработка, векторизация TF‑IDF,
-классификация тональности (Logistic Regression / SVM), тематическая кластеризация (K‑Means, DBSCAN),
+классификация тональности (Logistic Regression / SVM),
 ивент‑анализ и визуализация результатов.
 
 ---
@@ -36,7 +36,6 @@ Algorithm/
 │   ├── predict.py          # Авторазметка всего корпуса
 │   └── saved/              # Сериализованные модели (.pkl)
 ├── analysis/               # Кластеризация, событийный и emoji-анализ
-│   ├── cluster.py          # K‑Means и DBSCAN, t‑SNE
 │   ├── event_analysis.py   # Временные ряды тональности и метрики событий
 │   ├── aggregator.py       # Агрегация по каналам, периодам, ориентации
 │   └── merge_predictions.py # Объединение предсказаний постов и комментариев
@@ -265,15 +264,7 @@ python -m analysis.aggregator --input results/predictions_all.csv --prefix all_
 python -m analysis.event_analysis --input results/predictions_all.csv --prefix all_
 ```
 
-### Шаг 9. Кластеризация
-
-```bash
-python -m analysis.cluster
-```
-
-K‑Means и DBSCAN, проекция t‑SNE. Сохраняется `results/clusters.csv`.
-
-### Шаг 10. Визуализация
+### Шаг 9. Визуализация
 
 ```bash
 python -m vizualization.plotter_posts
@@ -287,7 +278,6 @@ python -m vizualization.plotter_emoji
 - динамика тональности и взвешенный индекс S(t)
 - тепловая карта каналов по месяцам
 - расхождение государственных и общественных каналов
-- t‑SNE визуализация кластеров
 - матрицы ошибок и сравнение моделей
 - влияние событий на тональность
 - эмодзи‑реакции и Emoji Sentiment Index (ESI)
@@ -309,7 +299,7 @@ rm -rf ~/.cache/matplotlib
 export EMOJI_FONT_PATH="/Library/Fonts/NotoEmoji-Regular.ttf"
 ```
 
-### Шаг 11. Запуск всего пайплайна (опционально)
+### Шаг 10. Запуск всего пайплайна (опционально)
 
 Базовый запуск:
 

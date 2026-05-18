@@ -44,10 +44,6 @@ from config.settings import (
 log = logging.getLogger(__name__)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-# ══════════════════════════════════════════════════════════════════════════════
-
 def _get_reaction_type(channel_username: str) -> str:
     """Возвращает тип реакций для канала из конфига."""
     for ch in CHANNELS:
@@ -70,10 +66,6 @@ def _emoji_dict_for_channel(channel_username: str) -> dict[str, str]:
     return {}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# РАЗБОР РЕАКЦИЙ
-# ══════════════════════════════════════════════════════════════════════════════
-
 def parse_emoji_reactions(
     reactions_top: str,
     emoji_dict: dict[str, str] | None = None,
@@ -89,7 +81,6 @@ def parse_emoji_reactions(
     Args:
         reactions_top: строка с эмодзи через пробел
         emoji_dict:    словарь {emoji: sentiment}; None → EMOJI_SENTIMENT
-
     Returns:
         {"positive": N, "negative": N, "neutral": N, "unknown": N}
     """
@@ -97,14 +88,12 @@ def parse_emoji_reactions(
         emoji_dict = EMOJI_SENTIMENT
 
     counts = {"positive": 0, "negative": 0, "neutral": 0, "unknown": 0}
-
     if not isinstance(reactions_top, str) or not reactions_top.strip():
         return counts
 
     for emoji in reactions_top.strip().split():
         sentiment = emoji_dict.get(emoji, "unknown")
         counts[sentiment] += 1
-
     return counts
 
 
@@ -124,13 +113,6 @@ def emoji_sentiment_score(
     Возвращает None если:
       - реакций нет (reactions_total == 0)
       - все эмодзи неизвестны или нейтральны
-
-    Методологическое замечание:
-      Для РИА Новости (только 👍/👎) ESI = (лайков - дизлайков) / всего реакций,
-      что даёт прямую бинарную меру тональности аудитории.
-      Для каналов с полным набором эмодзи ESI учитывает лишь топ-3 эмодзи
-      (те, что сохранены в reactions_top) как качественный индикатор,
-      а не точный количественный показатель.
     """
     if not reactions_total or not isinstance(reactions_top, str):
         return None
@@ -145,10 +127,6 @@ def emoji_sentiment_score(
 
     return (n_pos - n_neg) / n_classified
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# АНАЛИЗ КОРПУСА
-# ══════════════════════════════════════════════════════════════════════════════
 
 def analyze_corpus(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -208,7 +186,6 @@ def analyze_corpus(df: pd.DataFrame) -> pd.DataFrame:
 
         # Список эмодзи для частотного анализа
         emoji_list = reactions_top.strip().split() if reactions_top.strip() else []
-
         parsed_rows.append({
             "emoji_positive": pos,
             "emoji_negative": neg,
@@ -231,10 +208,6 @@ def analyze_corpus(df: pd.DataFrame) -> pd.DataFrame:
     )
     return df
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# СРАВНЕНИЕ: ТЕКСТ vs ЭМОДЗИ
-# ══════════════════════════════════════════════════════════════════════════════
 
 def compare_text_vs_emoji(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -299,10 +272,6 @@ def compare_text_vs_emoji(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ПРОФИЛЬ РЕАКЦИЙ ПО КАНАЛУ
-# ══════════════════════════════════════════════════════════════════════════════
 
 def channel_emoji_profile(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -369,10 +338,6 @@ def channel_emoji_profile(df: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ДИНАМИКА ESI ВО ВРЕМЕНИ
-# ══════════════════════════════════════════════════════════════════════════════
-
 def timeline_esi(
     df: pd.DataFrame,
     freq: str = "W",
@@ -414,10 +379,6 @@ def timeline_esi(
 
     return pd.DataFrame(rows)
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# ОСНОВНОЙ ПАЙПЛАЙН
-# ══════════════════════════════════════════════════════════════════════════════
 
 def run_pipeline() -> dict[str, pd.DataFrame]:
     """
@@ -466,10 +427,6 @@ def run_pipeline() -> dict[str, pd.DataFrame]:
 
     return results
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# CLI
-# ══════════════════════════════════════════════════════════════════════════════
 
 def main() -> None:
     logging.basicConfig(

@@ -37,14 +37,13 @@ from config.settings import (
 log = logging.getLogger(__name__)
 
 
-# ── Обучение и сохранение ─────────────────────────────────────────────────────
+# Обучение и сохранение
 def fit_vectorizer(
     texts: list[str] | pd.Series,
     params: dict | None = None,
 ) -> tuple[TfidfVectorizer, sp.csr_matrix]:
     """
     Обучает TfidfVectorizer на корпусе.
-
     Args:
         texts:  итерируемая коллекция лемматизированных текстов
         params: параметры векторизатора (по умолчанию из settings)
@@ -113,7 +112,7 @@ def load_matrix(
     return matrix, vocab
 
 
-# ── Анализ терминов ───────────────────────────────────────────────────────────
+# Анализ терминов
 def top_terms_global(
     vectorizer: TfidfVectorizer,
     matrix: sp.csr_matrix,
@@ -121,7 +120,6 @@ def top_terms_global(
 ) -> pd.DataFrame:
     """
     Топ-N терминов по среднему TF-IDF-весу по всему корпусу.
-
     Returns:
         DataFrame с колонками ['term', 'mean_tfidf']
     """
@@ -145,12 +143,10 @@ def top_terms_per_group(
 ) -> dict[str, pd.DataFrame]:
     """
     Топ-N терминов для каждой группы (например, по каналу или ориентации).
-
     Args:
         df_corpus: DataFrame корпуса (строки соответствуют строкам матрицы)
         group_col: колонка для группировки ('channel_label', 'orientation' и т.д.)
         n:         число топ-терминов
-
     Returns:
         Словарь {group_value: DataFrame(term, mean_tfidf)}
     """
@@ -178,10 +174,8 @@ def tfidf_dynamics(
 ) -> pd.DataFrame:
     """
     Строит временну́ю динамику TF-IDF-весов для заданного списка ключевых слов.
-
     Позволяет отследить, как менялась значимость терминов
     (например, «схема», «реституция», «добросовестный») по месяцам.
-
     Args:
         df_corpus: DataFrame с колонкой 'date' (datetime)
         keywords:  список лемматизированных слов для отслеживания
@@ -223,7 +217,7 @@ def tfidf_dynamics(
     return result
 
 
-# ── Основной пайплайн ─────────────────────────────────────────────────────────
+# Основной пайплайн
 def run_pipeline(
     input_path=PROCESSED_CSV,
     top_n: int = 30,

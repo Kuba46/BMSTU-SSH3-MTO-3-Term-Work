@@ -123,7 +123,6 @@ def _register_emoji_fonts() -> list[str]:
     ]:
         if name in available and name not in registered:
             registered.append(name)
-
     return registered
 
 emoji_fonts = _register_emoji_fonts()
@@ -135,7 +134,7 @@ if not emoji_fonts:
 else:
     log.info("Emoji-шрифты: %s", ", ".join(emoji_fonts))
 
-# ── Глобальный стиль ──────────────────────────────────────────────────────────
+# Глобальный стиль
 plt.rcParams.update({
     "font.family":       emoji_fonts + ["DejaVu Sans", "sans-serif"],
     "font.size":         11,
@@ -198,7 +197,7 @@ def _load_corpus(source_path: Path | None = None) -> pd.DataFrame:
     ]
     if source_path:
         candidates.insert(0, source_path)
- 
+
     for path in candidates:
         if path and path.exists():
             log.info("Загружаем данные: %s", path)
@@ -207,15 +206,14 @@ def _load_corpus(source_path: Path | None = None) -> pd.DataFrame:
             df["reactions_total"] = pd.to_numeric(
                 df.get("reactions_total", 0), errors="coerce"
             ).fillna(0).astype(int)
-            df["date"] = pd.to_datetime(df.get("date", pd.Series(dtype=str)),
-                                        utc=True, errors="coerce")
+            df["date"] = pd.to_datetime(df.get("date", pd.Series(dtype=str)), utc=True, errors="coerce")
             return df
- 
+
     raise FileNotFoundError(
         "Файл данных не найден. Запустите: python -m data.collector"
     )
- 
- 
+
+
 def _count_emojis_for_df(
     df: pd.DataFrame,
     channel_username: str,
@@ -231,8 +229,8 @@ def _count_emojis_for_df(
             for em in row_emojis.strip().split():
                 emoji_counter[em] += 1
     return emoji_counter
- 
- 
+
+
 def _add_event_markers(ax: plt.Axes, ymin: float = 0, ymax: float = 1) -> None:
     """Добавляет вертикальные линии ключевых событий."""
     for ev in EVENTS:
@@ -242,8 +240,8 @@ def _add_event_markers(ax: plt.Axes, ymin: float = 0, ymax: float = 1) -> None:
         ax.text(x, ymax * 0.96, ev["short"],
                 rotation=90, fontsize=6.5, color="#e67e22",
                 alpha=0.85, va="top", ha="right")
- 
- 
+
+
 def plot_emoji_frequency_by_channel(
     df: pd.DataFrame,
     channels: list[str] | None = None,
@@ -264,49 +262,48 @@ def plot_emoji_frequency_by_channel(
             ch["username"] for ch in CHANNELS
             if ch.get("reaction_type") != "none"
         ]
- 
+
     # Собираем счётчики для каждого канала
     channel_counters: dict[str, Counter] = {}
     for username in channels:
         cnt = _count_emojis_for_df(df, username)
         if cnt:
             channel_counters[username] = cnt
- 
+
     if not channel_counters:
         log.warning("Нет данных о реакциях для выбранных каналов.")
         return FIGURES_DIR / "no_data.txt"
- 
+
     n_channels = len(channel_counters)
     cols = min(3, n_channels)
     rows = (n_channels + cols - 1) // cols
- 
+
     fig, axes = plt.subplots(
         rows, cols,
         figsize=(cols * 6, rows * 5),
         squeeze=False,
     )
     axes_flat = axes.flatten()
- 
+
     for ax_idx, (username, counter) in enumerate(channel_counters.items()):
         ax = axes_flat[ax_idx]
- 
-        # Метаданные канала
-        ch_meta  = next((c for c in CHANNELS if c["username"] == username), {})
-        label    = ch_meta.get("label", username)
-        rtype    = ch_meta.get("reaction_type", "emoji_full")
+
+        ch_meta = next((c for c in CHANNELS if c["username"] == username), {})
+        label = ch_meta.get("label", username)
+        rtype = ch_meta.get("reaction_type", "emoji_full")
         emoji_dict = _emoji_dict_for(username)
- 
+
         # Топ-N эмодзи
         top_items = counter.most_common(top_n)
         if not top_items:
             ax.set_visible(False)
             continue
- 
+
         emojis = [item[0] for item in top_items]
         counts = [item[1] for item in top_items]
         colors = [_CAT_COLOR.get(emoji_dict.get(e, "unknown"), "#bdc3c7")
                   for e in emojis]
- 
+
         # Рисуем горизонтальные бары
         y_pos = range(len(emojis))
         bars = ax.barh(
@@ -314,7 +311,7 @@ def plot_emoji_frequency_by_channel(
             color=colors, alpha=0.85, height=0.65,
             edgecolor="white", linewidth=0.5,
         )
- 
+
         # Подписи значений
         for bar, count in zip(bars, counts):
             ax.text(
@@ -322,12 +319,12 @@ def plot_emoji_frequency_by_channel(
                 bar.get_y() + bar.get_height() / 2,
                 str(count), va="center", fontsize=8.5,
             )
- 
+
         # Эмодзи как метки оси Y
         ax.set_yticks(list(y_pos))
         ax.set_yticklabels(emojis, fontsize=14)   # крупнее для эмодзи
         ax.invert_yaxis()
- 
+
         orient_label = "гос." if ch_meta.get("orientation") == "state" else "общ."
         rtype_label  = "👍👎 only" if rtype == "like_dislike" else "full emoji"
         ax.set_title(
@@ -342,8 +339,7 @@ def plot_emoji_frequency_by_channel(
             Patch(color=COLOR_NEGATIVE, label="негативные"),
             Patch(color=COLOR_NEUTRAL,  label="нейтральные"),
         ]
-        ax.legend(handles=legend_handles, loc="lower right",
-                  fontsize=7.5, framealpha=0.7)
+        ax.legend(handles=legend_handles, loc="lower right", fontsize=7.5, framealpha=0.7)
 
     for i in range(len(channel_counters), len(axes_flat)):
         axes_flat[i].set_visible(False)
@@ -353,7 +349,7 @@ def plot_emoji_frequency_by_channel(
         fontsize=13, fontweight="bold", y=1.01,
     )
     fig.tight_layout()
-    return _save(fig, "fig_2_11_emoji_frequency_by_channel", show)
+    return _save(fig, "fig_2_9_emoji_frequency_by_channel", show)
 
 
 def plot_emoji_monthly_heatmap(
@@ -367,7 +363,6 @@ def plot_emoji_monthly_heatmap(
       ось X — месяц (апр 2025 … дек 2025),
       ось Y — топ-N эмодзи канала,
       значение — доля постов в данном месяце, где эмодзи присутствует в топ-3.
- 
     Нормировка по столбцу (месяцу): позволяет сравнить
     относительную популярность эмодзи внутри каждого месяца.
     """
@@ -376,29 +371,28 @@ def plot_emoji_monthly_heatmap(
             ch["username"] for ch in CHANNELS
             if ch.get("reaction_type") != "none"
         ]
- 
+
     saved_paths = []
- 
     for username in channels:
-        ch_meta  = next((c for c in CHANNELS if c["username"] == username), {})
-        label    = ch_meta.get("label", username)
-        rtype    = ch_meta.get("reaction_type", "emoji_full")
- 
+        ch_meta = next((c for c in CHANNELS if c["username"] == username), {})
+        label = ch_meta.get("label", username)
+        rtype = ch_meta.get("reaction_type", "emoji_full")
+
         ch_df = df[
             (df["channel_username"] == username) &
             (df["reactions_top"].str.strip() != "")
         ].copy()
- 
+
         if ch_df.empty:
             log.info("@%s: нет данных о реакциях, пропускаем.", username)
             continue
- 
+
         # Определяем топ-N эмодзи канала
         counter = _count_emojis_for_df(df, username)
         top_emojis = [em for em, _ in counter.most_common(top_n)]
         if not top_emojis:
             continue
- 
+
         # Группируем по месяцу
         ch_df = ch_df.dropna(subset=["date"]).copy()
         dates = ch_df["date"]
@@ -406,11 +400,11 @@ def plot_emoji_monthly_heatmap(
             dates = dates.dt.tz_convert(None)
         ch_df["month"] = dates.dt.to_period("M").astype(str)
         months = sorted(ch_df["month"].unique())
- 
+
         # Строим матрицу: строки — эмодзи, столбцы — месяцы
         # Значение = число постов где эмодзи встречается в топ-3 / всего постов в месяц
         matrix = pd.DataFrame(index=top_emojis, columns=months, dtype=float).fillna(0.0)
- 
+
         for month, month_df in ch_df.groupby("month"):
             n_month = len(month_df)
             if n_month == 0:
@@ -421,22 +415,22 @@ def plot_emoji_monthly_heatmap(
                     if em in top_emojis:
                         matrix.at[em, month] += 1
             matrix[month] = matrix[month] / n_month * 100  # → %
- 
+
         # Метки эмодзи без категорий
         row_labels = [em for em in top_emojis]
- 
-        # ── Рисуем ────────────────────────────────────────────────────────────
+
+        # Рисуем
         fig_h = max(4, len(top_emojis) * 0.55 + 2)
         fig_w = max(8, len(months) * 1.1 + 2)
         fig, ax = plt.subplots(figsize=(fig_w, fig_h))
- 
+
         # Кастомный колормап: белый → цвет ориентации канала
         orient = ch_meta.get("orientation", "public")
         base_color = COLOR_STATE if orient == "state" else COLOR_PUBLIC
         cmap = LinearSegmentedColormap.from_list(
             "custom", ["#ffffff", base_color], N=256
         )
- 
+
         sns.heatmap(
             matrix.astype(float),
             ax=ax,
@@ -450,18 +444,10 @@ def plot_emoji_monthly_heatmap(
             cbar_kws={"label": "% постов в месяце", "shrink": 0.8},
             yticklabels=row_labels,
         )
- 
-        orient_label = "государственный" if orient == "state" else "общественный"
-        rtype_label  = "только 👍/👎" if rtype == "like_dislike" else "полный набор реакций"
-        ax.set_title(
-            f"Динамика эмодзи-реакций по месяцам\n"
-            f"{label}  ({orient_label} | {rtype_label})\n"
-            f"март–декабрь 2025 г.",
-            fontsize=11, fontweight="bold",
-        )
+
         ax.set_xlabel("Месяц")
         ax.set_ylabel("Эмодзи")
- 
+
         plt.xticks(rotation=30, ha="right", fontsize=9)
         plt.yticks(rotation=0, fontsize=12)
 
@@ -470,7 +456,6 @@ def plot_emoji_monthly_heatmap(
         fname = f"fig_emoji_monthly_{username}"
         path  = _save(fig, fname, show)
         saved_paths.append(path)
- 
     return saved_paths
  
 
@@ -491,10 +476,10 @@ def plot_emoji_sentiment_distribution(
         rtype    = ch.get("reaction_type", "none")
         if rtype == "none":
             continue
- 
-        counter    = _count_emojis_for_df(df, username)
+
+        counter = _count_emojis_for_df(df, username)
         emoji_dict = _emoji_dict_for(username)
- 
+
         n_pos = n_neg = n_neu = 0
         for em, cnt in counter.items():
             cat = emoji_dict.get(em, "unknown")
@@ -504,18 +489,18 @@ def plot_emoji_sentiment_distribution(
                 n_neg += cnt
             elif cat == "neutral":
                 n_neu += cnt
- 
+
         total = n_pos + n_neg + n_neu
         if total == 0:
             continue
- 
+
         rows.append({
-            "label":       ch["label"],
+            "label": ch["label"],
             "orientation": ch["orientation"],
-            "rtype":       rtype,
-            "pct_pos":     n_pos / total * 100,
-            "pct_neu":     n_neu / total * 100,
-            "pct_neg":     n_neg / total * 100,
+            "rtype": rtype,
+            "pct_pos": n_pos / total * 100,
+            "pct_neu": n_neu / total * 100,
+            "pct_neg": n_neg / total * 100,
             "total_emojis": total,
         })
 
@@ -525,7 +510,7 @@ def plot_emoji_sentiment_distribution(
 
     df_plot = pd.DataFrame(rows).sort_values("pct_pos", ascending=True)
     fig, ax = plt.subplots(figsize=(11, max(5, len(df_plot) * 0.75 + 1.5)))
- 
+
     y = range(len(df_plot))
     height = 0.55
 
@@ -568,7 +553,7 @@ def plot_emoji_sentiment_distribution(
     )
     ax.legend(loc="lower right", fontsize=9, framealpha=0.8)
     fig.tight_layout()
-    return _save(fig, "fig_2_12_emoji_sentiment_distribution", show)
+    return _save(fig, "fig_2_10_emoji_sentiment_distribution", show)
 
 
 def plot_esi_timeline(
@@ -585,20 +570,19 @@ def plot_esi_timeline(
 
     if "esi" not in df.columns:
         df = analyze_corpus(df)
- 
+
     df2 = df.dropna(subset=["date", "esi"]).copy()
     if df2.empty:
         log.warning("Нет данных ESI для построения временного ряда.")
         return FIGURES_DIR / "no_esi_data.txt"
- 
+
     df2["date"] = pd.to_datetime(df2["date"], utc=True, errors="coerce")
- 
     fig, (ax_top, ax_bot) = plt.subplots(
         2, 1, figsize=(14, 9), sharex=True,
         gridspec_kw={"height_ratios": [3, 1]},
     )
- 
-    # ── Верхний: ESI по ориентации ────────────────────────────────────────────
+
+    # Верхний: ESI по ориентации
     for orient, color, lbl in [
         ("state",  COLOR_STATE,  "Государственные каналы"),
         ("public", COLOR_PUBLIC, "Общественные каналы"),
@@ -614,7 +598,7 @@ def plot_esi_timeline(
         )
         weekly.columns = ["period", "mean_esi", "sem_esi"]
         weekly = weekly.dropna(subset=["mean_esi"])
- 
+
         ax_top.plot(
             weekly["period"], weekly["mean_esi"],
             color=color, linewidth=2.0, label=lbl,
@@ -628,7 +612,6 @@ def plot_esi_timeline(
         )
 
     ax_top.axhline(0, color="#7f8c8d", linewidth=0.8, linestyle="-")
-
     y_abs = max(df2["esi"].abs().max() * 1.2, 0.2)
     _add_event_markers(ax_top, ymin=-y_abs, ymax=y_abs)
     ax_top.set_ylim(-y_abs, y_abs)
@@ -651,7 +634,7 @@ def plot_esi_timeline(
         color=COLOR_NEGATIVE, alpha=0.05,
     )
 
-    # ── Нижний: число постов с реакциями ─────────────────────────────────────
+    # Нижний: число постов с реакциями
     weekly_all = (
         df2.set_index("date")
         .resample("W")
@@ -673,7 +656,7 @@ def plot_esi_timeline(
 
     plt.xticks(rotation=30, ha="right")
     fig.tight_layout()
-    return _save(fig, "fig_2_13_esi_timeline", show)
+    return _save(fig, "fig_2_11_esi_timeline", show)
 
 
 def save_all_emoji_plots(
