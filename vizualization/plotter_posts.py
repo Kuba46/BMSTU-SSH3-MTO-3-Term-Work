@@ -70,6 +70,9 @@ plt.rcParams.update({
 
 sns.set_theme(style="whitegrid", context="notebook", palette="muted")
 
+# Минимальное количество постов/комментариев для надежного индекса тональности
+MIN_COUNT_THRESHOLD = 200
+
 
 def _add_event_markers(
     ax: plt.Axes,
@@ -225,18 +228,71 @@ def plot_orientation_divergence(df: pd.DataFrame, show: bool = False) -> Path:
     df2["period"] = pd.to_datetime(df2["period"])
     df2 = df2.sort_values("period")
     periods = df2["period"].values
+    
+    # Определяем ненадежные периоды (малое количество данных)
+    n_state = df2.get("n_state", pd.Series(dtype=float)).values
+    n_public = df2.get("n_public", pd.Series(dtype=float)).values
+    
+    # Если данных о количестве нет — не применяем затенение
+    if len(n_state) > 0 and len(n_public) > 0:
+        n_state = np.full_like(periods, 0, dtype=float) if len(n_state) == 0 else n_state
+        n_public = np.full_like(periods, 0, dtype=float) if len(n_public) == 0 else n_public
+        sparse_mask = (n_state < MIN_COUNT_THRESHOLD) | (n_public < MIN_COUNT_THRESHOLD)
+        
+        # Затеняем ненадежные периоды
+        for i in range(len(periods) - 1):
+            if sparse_mask[i]:
+                ax1.axvspan(periods[i], periods[i+1], alpha=0.08, color="gray")
+                ax2.axvspan(periods[i], periods[i+1], alpha=0.08, color="gray")
 
+    # Соединяем разорванные линии горизонтальными отрезками (через пропуски данных)
     if df2["state_index"].notna().any():
-        ax1.plot(periods, df2["state_index"], color=COLOR_STATE,
-                 linewidth=1.8, label="Государственные каналы")
+        valid_state = df2[df2["state_index"].notna()].copy()
+        ax1.plot(valid_state["period"], valid_state["state_index"], 
+                 color=COLOR_STATE, linewidth=1.8, label="Государственные каналы", marker="o", markersize=4)
+        
+        # Соединяем горизонтальными линиями пропуски
+        for i in range(len(valid_state) - 1):
+            curr_date = valid_state.iloc[i]["period"]
+            next_date = valid_state.iloc[i+1]["period"]
+            curr_idx = valid_state.iloc[i]["state_index"]
+            
+            # Проверяем есть ли разрыв (пропущенные периоды)
+            date_diff = (next_date - curr_date).days
+            if date_diff > 32:  # Если больше месяца
+                ax1.plot([curr_date, next_date], [curr_idx, curr_idx], 
+                        color=COLOR_STATE, linewidth=1.8, alpha=0.5, linestyle=":")
+    
     if df2["public_index"].notna().any():
-        ax1.plot(periods, df2["public_index"], color=COLOR_PUBLIC,
-                 linewidth=1.8, linestyle="--", label="Общественные каналы")
+        valid_public = df2[df2["public_index"].notna()].copy()
+        ax1.plot(valid_public["period"], valid_public["public_index"], 
+                 color=COLOR_PUBLIC, linewidth=1.8, linestyle="--", label="Общественные каналы", marker="s", markersize=4)
+        
+        # Соединяем горизонтальными линиями пропуски
+        for i in range(len(valid_public) - 1):
+            curr_date = valid_public.iloc[i]["period"]
+            next_date = valid_public.iloc[i+1]["period"]
+            curr_idx = valid_public.iloc[i]["public_index"]
+            
+            # Проверяем есть ли разрыв (пропущенные периоды)
+            date_diff = (next_date - curr_date).days
+            if date_diff > 32:  # Если больше месяца
+                ax1.plot([curr_date, next_date], [curr_idx, curr_idx], 
+                        color=COLOR_PUBLIC, linewidth=1.8, alpha=0.5, linestyle=":")
+    
     ax1.axhline(0, color="#bdc3c7", linewidth=0.8)
     ax1.set_ylabel("Индекс тональности S(t)")
-    ax1.legend()
     ax1.set_ylim(-1.0, 1.0)
     _add_event_markers(ax1, ymax=1.0)
+    
+    # Добавляем легенду с отметкой о ненадежных периодах (если они есть)
+    from matplotlib.patches import Patch
+    handles, labels = ax1.get_legend_handles_labels()
+    if "n_state" in df2.columns and "n_public" in df2.columns:
+        sparse_patch = Patch(facecolor="gray", alpha=0.08, label="Малое количество данных (n<200)")
+        ax1.legend(handles + [sparse_patch], labels + ["Малое количество данных (n<200)"], loc="upper left", fontsize=9)
+    else:
+        ax1.legend(handles, labels, loc="upper left", fontsize=9)
 
     valid_div = df2.dropna(subset=["divergence"])
     if valid_div.empty:

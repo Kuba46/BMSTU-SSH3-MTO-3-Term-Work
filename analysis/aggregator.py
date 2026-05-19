@@ -38,6 +38,9 @@ log = logging.getLogger(__name__)
 # Коэффициент усиления реакции относительно просмотра
 REACTION_WEIGHT = 5
 
+# Минимальное количество постов/комментариев в периоде для надежного индекса
+MIN_COUNT_THRESHOLD = 200
+
 
 # ── Загрузка ──────────────────────────────────────────────────────────────────
 def load_predictions(input_path=PREDICTIONS_CSV) -> pd.DataFrame:
@@ -96,9 +99,14 @@ def aggregate_by_period(
     df: pd.DataFrame,
     freq: str = "W",
     reaction_weight: int = REACTION_WEIGHT,
+    use_weights: bool = True,
 ) -> pd.DataFrame:
     """
     Взвешенный индекс тональности S(t) по временны́м периодам.
+
+    Args:
+        use_weights: если False, использует невзвешенный индекс
+                     (для комментариев, у которых нет данных об охвате)
 
     Returns:
         DataFrame: period, n_posts, weighted_si, unweighted_si,
@@ -115,10 +123,16 @@ def aggregate_by_period(
         n_neu = (grp["sentiment_pred"] == 0).sum()
         n_neg = (grp["sentiment_pred"] == -1).sum()
 
+        # Для комментариев (без охвата) используем невзвешенный индекс
+        if use_weights and reach.sum() > 0:
+            si = weighted_sentiment_index(grp, reaction_weight)
+        else:
+            si = float(grp["sentiment_pred"].mean())
+
         rows.append({
             "period":        period,
             "n_posts":       n,
-            "weighted_si":   weighted_sentiment_index(grp, reaction_weight),
+            "weighted_si":   si,
             "unweighted_si": float(grp["sentiment_pred"].mean()),
             "total_reach":   int(reach.sum()),
             "pct_positive":  n_pos / n * 100,
@@ -128,6 +142,16 @@ def aggregate_by_period(
 
     result = pd.DataFrame(rows)
     log.info("aggregate_by_period: %d периодов (freq=%s)", len(result), freq)
+    
+    # Предупреждение о малом количестве данных
+    sparse = result[result["n_posts"] < MIN_COUNT_THRESHOLD]
+    if not sparse.empty:
+        log.warning(
+            "⚠️  Периоды с малым количеством данных (n<%d):\n%s",
+            MIN_COUNT_THRESHOLD,
+            sparse[["period", "n_posts"]].to_string(index=False)
+        )
+    
     return result
 
 
@@ -135,9 +159,13 @@ def aggregate_by_period(
 def aggregate_by_channel(
     df: pd.DataFrame,
     reaction_weight: int = REACTION_WEIGHT,
+    use_weights: bool = True,
 ) -> pd.DataFrame:
     """
     Индекс тональности и структура распределения по каналам.
+
+    Args:
+        use_weights: если False, использует невзвешенный индекс
 
     Returns:
         DataFrame: channel_label, orientation, n_posts,
@@ -154,11 +182,17 @@ def aggregate_by_channel(
         n_neg = (grp["sentiment_pred"] == -1).sum()
         reach = grp["views"] + reaction_weight * grp["reactions_total"]
 
+        # Для комментариев используем невзвешенный индекс
+        if use_weights and reach.sum() > 0:
+            si = weighted_sentiment_index(grp, reaction_weight)
+        else:
+            si = float(grp["sentiment_pred"].mean())
+
         rows.append({
             "channel_label":  label,
             "orientation":    orient,
             "n_posts":        n,
-            "weighted_si":    weighted_sentiment_index(grp, reaction_weight),
+            "weighted_si":    si,
             "pct_positive":   n_pos / n * 100,
             "pct_neutral":    n_neu / n * 100,
             "pct_negative":   n_neg / n * 100,
@@ -180,9 +214,13 @@ def aggregate_by_channel(
 def aggregate_by_orientation(
     df: pd.DataFrame,
     reaction_weight: int = REACTION_WEIGHT,
+    use_weights: bool = True,
 ) -> pd.DataFrame:
     """
     Сравнение государственных и общественных каналов по ключевым метрикам.
+
+    Args:
+        use_weights: если False, использует невзвешенный индекс
 
     Returns:
         DataFrame: orientation, n_channels, n_posts, weighted_si,
@@ -197,11 +235,17 @@ def aggregate_by_orientation(
         n_neg = (grp["sentiment_pred"] == -1).sum()
         reach = grp["views"] + reaction_weight * grp["reactions_total"]
 
+        # Для комментариев используем невзвешенный индекс
+        if use_weights and reach.sum() > 0:
+            si = weighted_sentiment_index(grp, reaction_weight)
+        else:
+            si = float(grp["sentiment_pred"].mean())
+
         rows.append({
             "orientation":   orient,
             "n_channels":    n_channels,
             "n_posts":       n,
-            "weighted_si":   weighted_sentiment_index(grp, reaction_weight),
+            "weighted_si":   si,
             "pct_positive":  n_pos / n * 100,
             "pct_neutral":   n_neu / n * 100,
             "pct_negative":  n_neg / n * 100,
@@ -284,17 +328,22 @@ def run_pipeline(
     table_only: bool = False,
     input_path=PREDICTIONS_CSV,
     output_prefix: str = "agg_",
+    use_weights: bool = True,
 ) -> dict[str, pd.DataFrame]:
     """
     Запускает полную агрегацию и сохраняет результаты.
+    
+    Args:
+        use_weights: если False, использует невзвешенный индекс
+                     (для комментариев без данных об охвате)
     """
     df = load_predictions(input_path=input_path)
 
     results = {
-        "by_period_weekly":  aggregate_by_period(df, freq="W"),
-        "by_period_monthly": aggregate_by_period(df, freq="ME"),
-        "by_channel":        aggregate_by_channel(df),
-        "by_orientation":    aggregate_by_orientation(df),
+        "by_period_weekly":  aggregate_by_period(df, freq="W", use_weights=use_weights),
+        "by_period_monthly": aggregate_by_period(df, freq="ME", use_weights=use_weights),
+        "by_channel":        aggregate_by_channel(df, use_weights=use_weights),
+        "by_orientation":    aggregate_by_orientation(df, use_weights=use_weights),
         "summary":           summary_table(df),
     }
 
@@ -351,8 +400,14 @@ def main() -> None:
         default="agg_",
         help="Префикс для файлов результатов (например, comments_).",
     )
+    parser.add_argument(
+        "--unweighted",
+        action="store_true",
+        help="Использовать невзвешенный индекс (для комментариев без охвата).",
+    )
     args = parser.parse_args()
     input_path = PREDICTIONS_CSV if args.input is None else Path(args.input)
+    run_pipeline(table_only=args.table, input_path=input_path, output_prefix=args.prefix, use_weights=not args.unweighted)
     run_pipeline(table_only=args.table, input_path=input_path, output_prefix=args.prefix)
 
 

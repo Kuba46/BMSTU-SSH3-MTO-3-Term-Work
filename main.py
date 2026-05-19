@@ -155,7 +155,7 @@ def main() -> None:
 			_run_module("analysis.event_analysis")
 
 			if args.with_comments and _exists(COMMENTS_PREDICTIONS_CSV):
-				_run_module("analysis.aggregator", ["--input", str(COMMENTS_PREDICTIONS_CSV), "--prefix", "comments_"])
+				_run_module("analysis.aggregator", ["--input", str(COMMENTS_PREDICTIONS_CSV), "--prefix", "comments_", "--unweighted"])
 				_run_module("analysis.event_analysis", ["--input", str(COMMENTS_PREDICTIONS_CSV), "--prefix", "comments_"])
 
 			if args.with_comments and _exists(PREDICTIONS_CSV) and _exists(COMMENTS_PREDICTIONS_CSV):

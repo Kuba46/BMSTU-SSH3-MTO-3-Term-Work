@@ -114,9 +114,6 @@ def plot_activity_timeline(df: pd.DataFrame, show: bool = False) -> Path:
            width=5, color="#16a085", alpha=0.75, label="Число комментариев")
     ax.set_xlabel("Дата")
     ax.set_ylabel("Число комментариев")
-    ax.set_title("Динамика активности комментариев\n"
-                 "(март–декабрь 2025 г., недельная агрегация)")
-
     y_max = df2["n_posts"].max() * 1.15
     _add_event_markers(ax, ymax=y_max)
     ax.set_ylim(0, y_max)
@@ -149,8 +146,6 @@ def plot_sentiment_timeline(df: pd.DataFrame, show: bool = False) -> Path:
     ax.set_xlabel("Дата")
     ax.set_ylabel("Доля комментариев, %")
     ax.set_ylim(0, 100)
-    ax.set_title("Динамика тональности комментариев\n"
-                 "(март–декабрь 2025 г., недельная агрегация)")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     plt.xticks(rotation=30, ha="right")
@@ -181,20 +176,16 @@ def plot_sentiment_index(df: pd.DataFrame, show: bool = False) -> Path:
     ax.set_ylim(-y_abs, y_abs)
     ax.set_xlabel("Дата")
     ax.set_ylabel("Взвешенный индекс тональности S(t)")
-    ax.set_title("Взвешенный индекс тональности комментариев S(t)\n"
-                 "(с учётом охвата; диапазон [-1, +1])")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     plt.xticks(rotation=30, ha="right")
     ax.legend(loc="upper left")
     fig.tight_layout()
-
     return _save(fig, "comments_fig_3_3_sentiment_index", show)
 
 
 def plot_channel_heatmap(df_wide: pd.DataFrame, show: bool = False) -> Path:
     fig, ax = plt.subplots(figsize=(14, 7))
-
     sns.heatmap(
         df_wide.T,
         ax=ax,
@@ -208,8 +199,6 @@ def plot_channel_heatmap(df_wide: pd.DataFrame, show: bool = False) -> Path:
         annot_kws={"fontsize": 8},
         cbar_kws={"label": "Индекс тональности S"},
     )
-    ax.set_title("Тепловая карта индекса тональности комментариев\n"
-                 "по каналам и месяцам (март–декабрь 2025 г.)")
     ax.set_xlabel("Период (месяц)")
     ax.set_ylabel("Telegram-канал")
     plt.xticks(rotation=30, ha="right")
@@ -246,8 +235,6 @@ def plot_event_impact(df: pd.DataFrame, show: bool = False) -> Path:
         ax.axvline(0, color="#7f8c8d", linewidth=0.8)
         ax.set_xlim(-0.1, 0.1)
         ax.set_xlabel("Δ индекса тональности (после − до события)")
-        ax.set_title("Изменение тональности комментариев\n"
-                     "в ±7 дней вокруг ключевых событий дела Долиной")
         ax.invert_yaxis()
         ax.grid(axis="x", alpha=0.3)
         fig.tight_layout()
@@ -260,13 +247,10 @@ def plot_event_impact(df: pd.DataFrame, show: bool = False) -> Path:
     ax.axvline(0, color="#7f8c8d", linewidth=0.8)
     ax.bar_label(bars, fmt="%+.3f", fontsize=9, padding=3)
     ax.set_xlabel("Δ индекса тональности (после − до события)")
-    ax.set_title("Изменение тональности комментариев\n"
-                 "в ±7 дней вокруг ключевых событий дела Долиной")
     ax.invert_yaxis()
     max_abs = float(np.nanmax(np.abs(df2["delta"])))
     ax.set_xlim(-max_abs * 1.15 if max_abs > 0 else -0.1, max_abs * 1.15 if max_abs > 0 else 0.1)
     fig.tight_layout()
-
     return _save(fig, "comments_fig_3_5_event_impact", show)
 
 
