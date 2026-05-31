@@ -185,8 +185,8 @@ python -m data.labeler
 Обучение моделей:
 
 ```bash
-python -m models.sentiment        # Logistic Regression
-python -m models.svm_clf          # SVM
+python -m models.sentiment
+python -m models.svm_clf
 ```
 
 Метрики сохраняются в `results/metrics.json`.
@@ -294,7 +294,7 @@ python -m vizualization.plotter_emoji
 - влияние событий на тональность
 - эмодзи‑реакции и Emoji Sentiment Index (ESI)
 
-#### Примечание про эмодзи‑шрифты
+#### Примечание про эмодзи‑шрифты (macOS)
 
 Если эмодзи не отображаются и появляются предупреждения `findfont`, установите emoji‑шрифт и сбросьте кэш:
 

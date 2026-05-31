@@ -136,9 +136,16 @@ def _in_period(dt: datetime | None) -> bool:
     return _START_DT <= dt <= _END_DT
 
 
-# ── Реакции ───────────────────────────────────────────────────────────────────
-
+# Парсинг реакций к посту — извлекаем общее количество и топ-3 эмодзи (если есть)
 def _parse_reactions(reactions: MessageReactions | None) -> dict:
+    """
+    Docstring для _parse_reactions
+    
+    :param reactions: Описание
+    :type reactions: MessageReactions | None
+    :return: Описание
+    :rtype: dict
+    """
     if reactions is None or not reactions.results:
         return {"reactions_total": 0, "reactions_top": ""}
     total = 0
@@ -154,8 +161,7 @@ def _parse_reactions(reactions: MessageReactions | None) -> dict:
     }
 
 
-# ── Linked discussion group ───────────────────────────────────────────────────
-
+# Linked discussion group
 async def _get_discussion_peer(
     client: TelegramClient,
     channel_username: str,
@@ -198,8 +204,7 @@ async def _get_discussion_peer(
         return None, None
 
 
-# ── Комментарии к одному посту ────────────────────────────────────────────────
-
+# Комментарии к одному посту
 async def _collect_comments_for_post(
     client: TelegramClient,
     channel_peer: object,
@@ -253,9 +258,6 @@ async def _collect_comments_for_post(
         ):
             if not isinstance(msg, Message):
                 continue
-
-            # ── Жёсткая дата-фильтрация ───────────────────────────────────────
-            # Отсекаем всё вне периода корпуса — главное исправление @davankov
             if not _in_period(msg.date):
                 continue
 
@@ -303,8 +305,7 @@ async def _collect_comments_for_post(
     return [header] + collected
 
 
-# ── Сбор одного канала ────────────────────────────────────────────────────────
-
+# Сбор одного канала
 async def collect_channel(
     client: TelegramClient,
     channel_meta: dict,
@@ -401,8 +402,7 @@ async def collect_channel(
     return posts, comments
 
 
-# ── Сохранение ────────────────────────────────────────────────────────────────
-
+# Сохранение
 def _save_channel_files(
     username: str,
     posts: list[dict],
@@ -410,15 +410,14 @@ def _save_channel_files(
 ) -> None:
     """
     Сохраняет данные канала в два CSV-файла.
-
     posts:    data/raw/{username}_raw.csv
     comments: data/raw/{username}_comments_raw.csv
 
     Формат comments CSV:
-      Строки с is_section_header=True — разделители секций между постами.
-      Остальные строки — обычные комментарии.
+        Строки с is_section_header=True — разделители секций между постами.
+        Остальные строки — обычные комментарии.
 
-      Пример чтения в pandas:
+    Пример чтения в pandas:
         df = pd.read_csv("shot_shot_comments_raw.csv")
         posts_sections = df[df["is_section_header"] == True]
         real_comments  = df[df["is_section_header"] == False]

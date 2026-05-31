@@ -42,7 +42,6 @@ REACTION_WEIGHT = 5
 MIN_COUNT_THRESHOLD = 200
 
 
-# ── Загрузка ──────────────────────────────────────────────────────────────────
 def load_predictions(input_path=PREDICTIONS_CSV) -> pd.DataFrame:
     """Загружает predictions.csv с предсказанной тональностью."""
     if not input_path.exists():
@@ -61,7 +60,7 @@ def load_predictions(input_path=PREDICTIONS_CSV) -> pd.DataFrame:
     return df
 
 
-# ── Взвешенный индекс тональности ────────────────────────────────────────────
+# Взвешенный индекс тональности
 def weighted_sentiment_index(
     df: pd.DataFrame,
     reaction_weight: int = REACTION_WEIGHT,
@@ -94,7 +93,7 @@ def weighted_sentiment_index(
     return float((df["sentiment_pred"] * reach).sum() / total_reach)
 
 
-# ── Агрегация по периодам ─────────────────────────────────────────────────────
+# Агрегация по периодам
 def aggregate_by_period(
     df: pd.DataFrame,
     freq: str = "W",
@@ -155,7 +154,6 @@ def aggregate_by_period(
     return result
 
 
-# ── Агрегация по каналам ──────────────────────────────────────────────────────
 def aggregate_by_channel(
     df: pd.DataFrame,
     reaction_weight: int = REACTION_WEIGHT,
@@ -210,7 +208,7 @@ def aggregate_by_channel(
     return result
 
 
-# ── Агрегация по ориентации ───────────────────────────────────────────────────
+# Агрегация по ориентации
 def aggregate_by_orientation(
     df: pd.DataFrame,
     reaction_weight: int = REACTION_WEIGHT,
@@ -257,7 +255,7 @@ def aggregate_by_orientation(
     return result
 
 
-# ── Наиболее охватные посты ───────────────────────────────────────────────────
+# Наиболее охватные посты
 def top_influential_posts(
     df: pd.DataFrame,
     n: int = 5,
@@ -289,7 +287,7 @@ def top_influential_posts(
     return result
 
 
-# ── Итоговая сводная таблица ──────────────────────────────────────────────────
+# Итоговая сводная таблица
 def summary_table(df: pd.DataFrame) -> pd.DataFrame:
     """
     Единая сводная таблица по всему корпусу.
@@ -323,7 +321,6 @@ def summary_table(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["Метрика", "Значение"])
 
 
-# ── Основной пайплайн ─────────────────────────────────────────────────────────
 def run_pipeline(
     table_only: bool = False,
     input_path=PREDICTIONS_CSV,
@@ -354,8 +351,7 @@ def run_pipeline(
             log.info("Сохранено → %s", path)
 
     # Сводная таблица в лог
-    log.info("\n%s\nСВОДНАЯ ТАБЛИЦА КОРПУСА\n%s",
-             "═" * 50, "═" * 50)
+    log.info("\n%s\nСВОДНАЯ ТАБЛИЦА КОРПУСА\n%s", "═" * 50, "═" * 50)
     log.info("\n%s", results["summary"].to_string(index=False))
 
     # Наиболее охватные посты
@@ -370,7 +366,6 @@ def run_pipeline(
                 f"{int(row.get('reach', 0)):,}",
                 text_preview,
             )
-
     return results
 
 

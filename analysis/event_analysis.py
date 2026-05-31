@@ -34,7 +34,7 @@ from config.settings import (
 log = logging.getLogger(__name__)
 
 
-# ── Загрузка ──────────────────────────────────────────────────────────────────
+# Загрузка
 def load_predictions(input_path=PREDICTIONS_CSV) -> pd.DataFrame:
     """
     Загружает predictions.csv и приводит типы.
@@ -58,30 +58,6 @@ def load_predictions(input_path=PREDICTIONS_CSV) -> pd.DataFrame:
     return df
 
 
-# ── Вспомогательные функции ───────────────────────────────────────────────────
-def _events_df() -> pd.DataFrame:
-    """Конвертирует список EVENTS из settings в DataFrame."""
-    rows = []
-    for ev in EVENTS:
-        rows.append({
-            "date":        pd.Timestamp(ev["date"], tz="UTC"),
-            "label":       ev["label"],
-            "short":       ev["short"],
-            "description": ev["description"],
-        })
-    return pd.DataFrame(rows)
-
-
-def _resample(
-    df: pd.DataFrame,
-    date_col: str = "date",
-    freq: str = "W",
-) -> pd.core.resample.DatetimeIndexResampler:
-    """Устанавливает date_col как индекс и ресэмплирует."""
-    return df.set_index(date_col).resample(freq)
-
-
-# ── Динамика активности ───────────────────────────────────────────────────────
 def activity_timeline(
     df: pd.DataFrame,
     freq: str = "W",
@@ -113,7 +89,6 @@ def activity_timeline(
     return result
 
 
-# ── Динамика тональности ──────────────────────────────────────────────────────
 def sentiment_timeline(
     df: pd.DataFrame,
     freq: str = "W",
@@ -122,7 +97,6 @@ def sentiment_timeline(
     Доля позитивных / нейтральных / негативных публикаций по периодам.
     Также вычисляет взвешенный индекс тональности:
         sentiment_index = (n_pos - n_neg) / n_total  ∈ [-1, +1]
-
     Returns:
         DataFrame: period, n_posts, pct_positive, pct_neutral, pct_negative,
                    sentiment_index
@@ -169,14 +143,12 @@ def sentiment_timeline(
     return result
 
 
-# ── Сравнение каналов ─────────────────────────────────────────────────────────
 def channel_comparison(
     df: pd.DataFrame,
     freq: str = "ME",
 ) -> pd.DataFrame:
     """
     Индекс тональности по каждому каналу по месяцам.
-
     Returns:
         DataFrame в wide-формате: period как индекс,
         каждый канал — отдельная колонка с sentiment_index
@@ -229,7 +201,6 @@ def channel_comparison(
     return wide_df
 
 
-# ── Расхождение гос. vs общ. ──────────────────────────────────────────────────
 def orientation_divergence(
     df: pd.DataFrame,
     freq: str = "W",
@@ -267,8 +238,7 @@ def orientation_divergence(
             else:
                 if use_proba:
                     result_row[f"{orient}_index"] = (
-                        float(sub["proba_positive"].mean())
-                        - float(sub["proba_negative"].mean())
+                        float(sub["proba_positive"].mean()) - float(sub["proba_negative"].mean())
                     )
                 else:
                     n_pos = (sub["sentiment_pred"] == 1).sum()
@@ -282,7 +252,6 @@ def orientation_divergence(
     return result
 
 
-# ── Реакции и просмотры ───────────────────────────────────────────────────────
 def reaction_timeline(
     df: pd.DataFrame,
     freq: str = "W",
@@ -291,7 +260,6 @@ def reaction_timeline(
     Суммарные реакции и просмотры по периодам.
     Дополнительно вычисляет engagement_rate:
         engagement_rate = reactions / views  (при views > 0)
-
     Returns:
         DataFrame: period, total_views, total_reactions, engagement_rate
     """
@@ -314,7 +282,6 @@ def reaction_timeline(
     return result
 
 
-# ── Оконный анализ вокруг событий ────────────────────────────────────────────
 def event_impact(
     df: pd.DataFrame,
     window_days: int = 7,
@@ -376,7 +343,6 @@ def event_impact(
     return result
 
 
-# ── Основной пайплайн ─────────────────────────────────────────────────────────
 def run_pipeline(
     summary_only: bool = False,
     input_path=PREDICTIONS_CSV,
@@ -421,7 +387,6 @@ def run_pipeline(
                  peak_neg["period"], peak_neg["pct_negative"])
         log.info("Пик активности: %s  (%d постов)",
                  peak_act["period"], peak_act["n_posts"])
-
     log.info("\nВлияние событий на тональность:")
     log.info(results["event_impact"].to_string(index=False))
     return results

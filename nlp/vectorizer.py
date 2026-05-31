@@ -217,7 +217,6 @@ def tfidf_dynamics(
     return result
 
 
-# Основной пайплайн
 def run_pipeline(
     input_path=PROCESSED_CSV,
     top_n: int = 30,

@@ -124,7 +124,6 @@ def emoji_sentiment_score(
 
     if n_classified == 0:
         return None
-
     return (n_pos - n_neg) / n_classified
 
 

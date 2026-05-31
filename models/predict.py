@@ -42,8 +42,7 @@ from config.settings import (
 log = logging.getLogger(__name__)
 
 
-# ── Выбор модели ──────────────────────────────────────────────────────────────
-
+# Выбор модели
 def _select_best_model() -> str:
     """
     Читает METRICS_JSON и возвращает имя лучшей модели ('logreg' или 'svm').

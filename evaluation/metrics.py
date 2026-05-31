@@ -49,7 +49,7 @@ log = logging.getLogger(__name__)
 REPORT_PATH = RESULTS_DIR / "metrics_report.txt"
 
 
-# ── Загрузка тестовой выборки ─────────────────────────────────────────────────
+# Загрузка тестовой выборки
 def _load_test_set(model_name: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Загружает размеченную выборку, векторизует и возвращает
@@ -100,7 +100,7 @@ def _load_test_set(model_name: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]
     return y_true, y_pred, proba_max, X_test_text
 
 
-# ── Оценка одной модели ───────────────────────────────────────────────────────
+# Оценка одной модели
 def evaluate_model(model_name: str = "logreg") -> dict:
     """
     Полная оценка модели на тестовой выборке.
@@ -165,7 +165,7 @@ def evaluate_model(model_name: str = "logreg") -> dict:
     return metrics
 
 
-# ── Сравнительная таблица ─────────────────────────────────────────────────────
+# Сравнительная таблица
 def compare_models() -> pd.DataFrame:
     """
     Строит сравнительную таблицу LogReg vs SVM.
@@ -224,7 +224,7 @@ def compare_models() -> pd.DataFrame:
     return result
 
 
-# ── Анализ ошибок ─────────────────────────────────────────────────────────────
+# Анализ ошибок
 def error_analysis(model_name: str = "logreg", n: int = 20) -> pd.DataFrame:
     """
     Возвращает n постов, классифицированных неверно с наибольшей уверенностью.
@@ -262,7 +262,7 @@ def error_analysis(model_name: str = "logreg", n: int = 20) -> pd.DataFrame:
     return result
 
 
-# ── Анализ уверенности ────────────────────────────────────────────────────────
+# Анализ уверенности
 def confidence_analysis(model_name: str = "logreg") -> pd.DataFrame:
     """
     Распределение уверенности модели по классам и по правильности предсказания.
@@ -296,7 +296,7 @@ def confidence_analysis(model_name: str = "logreg") -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-# ── Сохранение отчёта ─────────────────────────────────────────────────────────
+# Сохранение отчёта
 def save_report(
     metrics_lr: dict,
     metrics_svm: dict,
@@ -308,13 +308,13 @@ def save_report(
         "ОТЧЁТ ОБ ОЦЕНКЕ КАЧЕСТВА КЛАССИФИКАТОРОВ ТОНАЛЬНОСТИ",
         "=" * 70,
         "",
-        "── LogisticRegression ─────────────────────────────────────────────",
+        "LogisticRegression ",
         metrics_lr.get("classification_report", ""),
         "",
-        "── SVM (LinearSVC + калибровка) ───────────────────────────────────",
+        "SVM (LinearSVC + калибровка) ",
         metrics_svm.get("classification_report", ""),
         "",
-        "── Сравнительная таблица ───────────────────────────────────────────",
+        "Сравнительная таблица",
         compare_df.to_string(index=False),
         "",
         "=" * 70,

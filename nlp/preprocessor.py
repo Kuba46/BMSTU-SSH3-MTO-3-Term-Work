@@ -14,7 +14,6 @@ nlp/preprocessor.py
 Запуск:
     python -m nlp.preprocessor          # читает CLEANED_CSV, пишет в PROCESSED_CSV
     python -m nlp.preprocessor --input data/cleaned/comments_cleaned.csv --output data/processed/comments_processed.csv
-    python -m nlp.preprocessor --demo   # показывает примеры очистки в терминале
 """
 
 
@@ -112,7 +111,6 @@ def preprocess_dataframe(df: pd.DataFrame, text_col: str = "text") -> pd.DataFra
     return df
 
 
-# Основная функция: читает сырой CSV, очищает текст, сохраняет результат в новый CSV.
 def run_pipeline(input_path=CLEANED_CSV, output_path=PROCESSED_CSV) -> pd.DataFrame:
     if not input_path.exists():
         raise FileNotFoundError(
@@ -122,30 +120,11 @@ def run_pipeline(input_path=CLEANED_CSV, output_path=PROCESSED_CSV) -> pd.DataFr
 
     df = pd.read_csv(input_path, encoding="utf-8")
     df["text"] = df["text"].fillna("").astype(str)
-
     df_clean = preprocess_dataframe(df)
     df_clean.to_csv(output_path, index=False, encoding="utf-8")
     log.info("Сохранено → %s", output_path)
-
     return df_clean
  
- 
-def _demo() -> None:
-    """Показывает примеры очистки на типичных Telegram-текстах."""
-    examples = [
-        "🔥 СРОЧНО! Верховный суд отменил решение по делу Долиной https://t.me/shot_shot/12345",
-        "Переслано от @rian_ru\n#суд #долина #лурье — сегодня важный день",
-        "via @rian_ru Квартира стоимостью 112 млн рублей возвращена Долиной 😤👇",
-        "Схема Долиной: как это работает? Подробнее: www.pravo.ru/story/12345",
-        "RT @davankov: Верховный суд принял правильное решение! Лурье получит квартиру обратно.",
-    ]
-    print("\n── ДЕМО: очистка текста ─────────────────────────────────────────")
-    for i, text in enumerate(examples, 1):
-        cleaned = clean_text(text)
-        print(f"\n[{i}] ИСХОДНЫЙ:\n  {text!r}")
-        print(f"    ОЧИЩЕННЫЙ:\n  {cleaned!r}")
-    print("\n─────────────────────────────────────────────────────────────────\n")
-
 
 def main() -> None:
     logging.basicConfig(
@@ -162,12 +141,9 @@ def main() -> None:
                         help="Путь к выходному CSV (по умолчанию PROCESSED_CSV).")
     args = parser.parse_args()
 
-    if args.demo:
-        _demo()
-    else:
-        input_path = CLEANED_CSV if args.input is None else Path(args.input)
-        output_path = PROCESSED_CSV if args.output is None else Path(args.output)
-        run_pipeline(input_path=input_path, output_path=output_path)
+    input_path = CLEANED_CSV if args.input is None else Path(args.input)
+    output_path = PROCESSED_CSV if args.output is None else Path(args.output)
+    run_pipeline(input_path=input_path, output_path=output_path)
 
 
 if __name__ == "__main__":

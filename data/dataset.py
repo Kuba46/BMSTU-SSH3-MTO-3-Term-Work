@@ -178,7 +178,6 @@ def split_by_orientation(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     return state, public
 
 
-# Подтягивает метки тональности из файла ручной разметки. Ожидаемые колонки labeled_path: channel_username, post_id, sentiment. Возвращает объединённый DataFrame только с размеченными постами.
 def merge_labeled(df_raw: pd.DataFrame, labeled_path: Path = LABELED_CSV) -> pd.DataFrame:
     if not labeled_path.exists():
         raise FileNotFoundError(

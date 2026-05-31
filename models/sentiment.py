@@ -74,12 +74,9 @@ def _build_logreg(params: dict) -> LogisticRegression:
             raise
 
 
-# ── Загрузка данных ───────────────────────────────────────────────────────────
-
 def load_labeled_corpus() -> pd.DataFrame:
     """
     Объединяет обработанный корпус (text_lemma) с разметкой тональности.
-
     Returns:
         DataFrame с колонками: text_lemma, sentiment, channel_username,
         channel_label, orientation, date
@@ -134,8 +131,6 @@ def load_labeled_corpus() -> pd.DataFrame:
     return df
 
 
-# ── Обучение ──────────────────────────────────────────────────────────────────
-
 def train(
     df: pd.DataFrame,
     tfidf_params: dict | None = None,
@@ -146,7 +141,6 @@ def train(
 ) -> tuple[TfidfVectorizer, LogisticRegression, dict]:
     """
     Полный цикл обучения: векторизация → split → кросс-валидация → обучение.
-
     Args:
         df:            DataFrame с колонками text_lemma, sentiment
         tfidf_params:  параметры TF-IDF (по умолчанию из settings)
@@ -154,7 +148,6 @@ def train(
         test_size:     доля тестовой выборки
         random_state:  seed для воспроизводимости
         cv_folds:      число фолдов кросс-валидации
-
     Returns:
         (vectorizer, model, metrics_dict)
     """
@@ -171,13 +164,13 @@ def train(
     X_text = df["text_lemma"].values
     y      = df["sentiment"].values
 
-    # ── Векторизация ──────────────────────────────────────────────────────────
+    # Векторизация
     log.info("Векторизация размеченной выборки (TF-IDF)...")
     vectorizer = TfidfVectorizer(**tfidf_params)
     X = vectorizer.fit_transform(X_text)
     log.info("Матрица TF-IDF: %s", X.shape)
 
-    # ── Разбивка train/test (стратифицированная) ──────────────────────────────
+    # Разбивка train/test (стратифицированная)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y,
         test_size=test_size,
@@ -190,7 +183,7 @@ def train(
         (1 - test_size) * 100, test_size * 100,
     )
 
-    # ── Кросс-валидация (на train) ────────────────────────────────────────────
+    # Кросс-валидация (на train)
     log.info("Кросс-валидация (%d-fold, метрика: f1_macro)...", cv_folds)
     model_cv = _build_logreg(logreg_params)
     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
@@ -202,12 +195,12 @@ def train(
         " ".join(f"{s:.3f}" for s in cv_scores),
     )
 
-    # ── Итоговое обучение на всём train ──────────────────────────────────────
+    # Итоговое обучение на всём train
     log.info("Обучение LogisticRegression на train...")
     model = _build_logreg(logreg_params)
     model.fit(X_train, y_train)
 
-    # ── Оценка на test ────────────────────────────────────────────────────────
+    # Оценка на test
     y_pred = model.predict(X_test)
 
     labels     = sorted(set(y))
@@ -248,8 +241,6 @@ def train(
     return vectorizer, model, metrics
 
 
-# ── Сохранение / загрузка ─────────────────────────────────────────────────────
-
 def save_model(
     vectorizer: TfidfVectorizer,
     model: LogisticRegression,
@@ -279,8 +270,7 @@ def load_model(
     return vectorizer, model
 
 
-# ── Интерпретация модели ──────────────────────────────────────────────────────
-
+# Интерпретация модели
 def top_features(
     vectorizer: TfidfVectorizer,
     model: LogisticRegression,
@@ -289,7 +279,6 @@ def top_features(
     """
     Топ-N слов с наибольшим весом для каждого класса тональности.
     Работает только для линейной модели (коэффициенты интерпретируемы).
-
     Returns:
         Словарь {'positive': df, 'neutral': df, 'negative': df}
     """
@@ -303,11 +292,8 @@ def top_features(
             "term":        terms[top_idx],
             "coefficient": coefs[top_idx],
         })
-
     return result
 
-
-# ── CLI ───────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     logging.basicConfig(

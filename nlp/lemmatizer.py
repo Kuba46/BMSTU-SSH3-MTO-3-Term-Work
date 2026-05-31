@@ -2,12 +2,10 @@
 nlp/lemmatizer.py
 =================
 Второй шаг NLP-пайплайна: морфологический анализ и лемматизация.
-
-Что делает:
     - Токенизирует очищенный текст по пробелам
-    - Для каждого токена определяет лемму через pymorphy2
-    - Фильтрует токены по части речи (ALLOWED_POS из settings)
-    - Удаляет стоп-слова (встроенные NLTK + пользовательский список)
+    - Для каждого токена определяет лемму через pymorphy3
+    - Фильтрует токены по части речи: ALLOWED_POS из settings
+    - Удаляет стоп-слова: встроенные NLTK + пользовательский список
     - Удаляет слишком короткие токены (< MIN_TOKEN_LEN символов)
     - Возвращает строку лемматизированных токенов через пробел
 
@@ -17,7 +15,6 @@ nlp/lemmatizer.py
 Запуск:
     python -m nlp.lemmatizer          # обрабатывает PROCESSED_CSV
     python -m nlp.lemmatizer --input data/processed/comments_processed.csv --output data/processed/comments_processed.csv
-    python -m nlp.lemmatizer --demo   # примеры в терминале
 """
 
 import argparse
@@ -26,14 +23,6 @@ import pandas as pd
 
 from functools import lru_cache
 from pathlib import Path
-
-# ── Совместимость pymorphy2 с Python 3.12 ────────────────────────────────────
-# В Python 3.12 удалён pkg_resources (часть setuptools).
-# pymorphy2 использует его для поиска словарей через entry_points.
-# Решение 1 (рекомендуется): pip install setuptools pymorphy2-dicts-ru
-# Решение 2 (fallback): заглушка pkg_resources через importlib.metadata
-import sys
-import types
 
 try:
     import pymorphy3 as _pymorphy
@@ -168,7 +157,7 @@ def lemmatize_text(text: str) -> str:
     result = []
 
     for token in tokens:
-        # Слишком короткие токены отбрасываем до лемматизации (быстро)
+        # Слишком короткие токены отбрасываем до лемматизации
         if len(token) < MIN_TOKEN_LENGTH:
             continue
 
@@ -187,7 +176,6 @@ def lemmatize_text(text: str) -> str:
             continue
 
         result.append(lemma)
-
     return " ".join(result)
 
 
@@ -198,12 +186,10 @@ def lemmatize_dataframe(
 ) -> pd.DataFrame:
     """
     Применяет lemmatize_text ко всему DataFrame.
-
     Args:
         df:       DataFrame с очищенным текстом
         text_col: колонка с очищенным текстом (после preprocessor)
         out_col:  название новой колонки с лемматизированным текстом
-
     Returns:
         DataFrame с добавленной колонкой out_col.
         Строки с пустым результатом удаляются.
@@ -260,26 +246,6 @@ def run_pipeline(input_path=PROCESSED_CSV, output_path=PROCESSED_CSV) -> pd.Data
     return df_lemma
 
 
-def _demo() -> None:
-    """Демонстрирует лемматизацию на примерах."""
-    examples = [
-        "схема долиной добросовестный покупатель реституция суд квартира",
-        "верховный суд отменил несправедливое решение хамовнического суда",
-        "общественное мнение сформировалось в телеграм-каналах за несколько месяцев",
-        "логистическая регрессия классификация тональности постов каналов",
-    ]
-    print("\n── ДЕМО: лемматизация ───────────────────────────────────────────")
-    for i, text in enumerate(examples, 1):
-        lemmatized = lemmatize_text(text)
-        print(f"\n[{i}] ИСХОДНЫЙ:\n  {text!r}")
-        print(f"    ЛЕММАТИЗИРОВАННЫЙ:\n  {lemmatized!r}")
-
-    # Показываем статистику кэша
-    ci = _lemmatize_token.cache_info()
-    print(f"  Кэш лемматизатора: hits={ci.hits}, misses={ci.misses}, "
-          f"size={ci.currsize}/{ci.maxsize}\n")
-
-
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -292,12 +258,9 @@ def main() -> None:
     parser.add_argument("--output", type=str, default=None, help="Путь к выходному CSV (по умолчанию PROCESSED_CSV).")
     args = parser.parse_args()
 
-    if args.demo:
-        _demo()
-    else:
-        input_path = PROCESSED_CSV if args.input is None else Path(args.input)
-        output_path = PROCESSED_CSV if args.output is None else Path(args.output)
-        run_pipeline(input_path=input_path, output_path=output_path)
+    input_path = PROCESSED_CSV if args.input is None else Path(args.input)
+    output_path = PROCESSED_CSV if args.output is None else Path(args.output)
+    run_pipeline(input_path=input_path, output_path=output_path)
 
 
 if __name__ == "__main__":
